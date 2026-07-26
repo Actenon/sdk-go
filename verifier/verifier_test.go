@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/actenon/sdk-go/verifier"
+	"github.com/Actenon/sdk-go/verifier"
 )
 
 func fixturesDir(t *testing.T) string {

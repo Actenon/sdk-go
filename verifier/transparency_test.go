@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/actenon/sdk-go/verifier"
+	"github.com/Actenon/sdk-go/verifier"
 )
 
 func transparencyFixturesDir(t *testing.T) string {

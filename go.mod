@@ -1,3 +1,3 @@
-module github.com/actenon/sdk-go
+module github.com/Actenon/sdk-go
 
 go 1.22

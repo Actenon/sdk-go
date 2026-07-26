@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/actenon/sdk-go/verifier"
+	"github.com/Actenon/sdk-go/verifier"
 )
 
 type sharedMutation struct {

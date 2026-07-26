@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/actenon/sdk-go/verifier"
+	"github.com/Actenon/sdk-go/verifier"
 )
 
 type requestBody struct {
