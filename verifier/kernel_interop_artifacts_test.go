@@ -41,31 +41,6 @@ type interopArtifactsDocument struct {
 	} `json:"inclusions"`
 }
 
-// interopArtifactCases lists the artifact vectors the SDK is checked against.
-var interopArtifactCases = map[string]bool{
-	"countersignature/receipt_current_profile":                true,
-	"countersignature/digest_current_profile":                 true,
-	"countersignature/digest_legacy_label_vs_current_profile": true,
-	"countersignature/legacy_profile_countersignature":        true,
-	"countersignature/unknown_profile_label":                  true,
-	"countersignature/anchor_reference_null":                  true,
-	"countersignature/anchor_reference_object":                true,
-	"countersignature/contract_extra_member":                  true,
-	"countersignature/signature_value_crlf":                   true,
-	"countersignature/signature_value_padded":                 true,
-	"approval/current_profile":                                true,
-	"approval/current_profile_expected_legacy_label":          true,
-	"approval/legacy_profile_expected_current_label":          true,
-	"approval/different_action":                               true,
-	"approval/unknown_profile_label":                          true,
-	"approval/expected_hash_unknown_label":                    true,
-	"approval/contract_extra_member":                          true,
-	"approval/signature_value_lf":                             true,
-	"inclusion/legacy_profile":                                true,
-	"inclusion/current_profile":                               true,
-	"inclusion/unknown_profile_label":                         true,
-}
-
 func loadInteropArtifacts(t *testing.T) interopArtifactsDocument {
 	t.Helper()
 	_, filename, _, ok := runtime.Caller(0)
@@ -123,9 +98,6 @@ func TestKernelInteropCountersignatures(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, vector := range document.Countersignatures {
-		if !interopArtifactCases["countersignature/"+vector.ID] {
-			continue
-		}
 		vector := vector
 		t.Run(vector.ID, func(t *testing.T) {
 			var receiptOrDigest map[string]any
@@ -150,9 +122,6 @@ func TestKernelInteropApprovals(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, vector := range document.Approvals {
-		if !interopArtifactCases["approval/"+vector.ID] {
-			continue
-		}
 		vector := vector
 		t.Run(vector.ID, func(t *testing.T) {
 			approval, err := verifier.ParseApprovalArtifactJSON(vector.Approval)
@@ -171,9 +140,6 @@ func TestKernelInteropApprovals(t *testing.T) {
 func TestKernelInteropInclusions(t *testing.T) {
 	document := loadInteropArtifacts(t)
 	for _, vector := range document.Inclusions {
-		if !interopArtifactCases["inclusion/"+vector.ID] {
-			continue
-		}
 		vector := vector
 		t.Run(vector.ID, func(t *testing.T) {
 			proof, err := verifier.ParseTransparencyInclusionProofJSON(vector.InclusionProof)

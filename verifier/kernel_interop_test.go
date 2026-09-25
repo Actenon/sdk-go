@@ -197,3 +197,10 @@ func runInteropCases(t *testing.T, ids ...string) {
 		t.Fatalf("selected %d interop cases, found %d", len(ids), ran)
 	}
 }
+
+// TestKernelInteropVectors runs every kernel_interop_v1 case: the SDK must
+// reach the reference's decision (or its documented stricter override) and
+// must never verify a proof the reference refuses.
+func TestKernelInteropVectors(t *testing.T) {
+	runInteropCases(t)
+}
