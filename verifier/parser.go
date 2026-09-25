@@ -313,8 +313,10 @@ func normalizeTargetRef(ref TargetRef, fieldName string, code VerificationErrorC
 }
 
 func normalizeScopeSpec(scope ScopeSpec, fieldName string) (ScopeSpec, error) {
-	if scope.Mode != "exact" {
-		return ScopeSpec{}, newVerificationError(ErrInvalidPCCB, fieldName+".mode must be 'exact'.", nil)
+	// Whether the mode is supported is a post-signature check
+	// (SCOPE_MODE_INVALID), as in the reference.
+	if strings.TrimSpace(scope.Mode) == "" {
+		return ScopeSpec{}, newVerificationError(ErrInvalidPCCB, fieldName+".mode must be a non-empty string.", nil)
 	}
 	capabilities := cloneStringSlice(scope.Capabilities)
 	if len(capabilities) == 0 {

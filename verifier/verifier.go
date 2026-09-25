@@ -50,23 +50,17 @@ func (v *Verifier) Verify(intent ActionIntent, pccb PCCB, context VerificationCo
 	if err != nil {
 		return VerifiedProtectedRequest{}, err
 	}
-
 	if v.clockSkewTolerance < 0 {
 		return VerifiedProtectedRequest{}, newVerificationError(ErrInvalidContext, "clock skew tolerance must be non-negative.", nil)
 	}
-	if normalizedContext.Now.Add(v.clockSkewTolerance).Before(notBefore) {
-		return VerifiedProtectedRequest{}, newVerificationError(ErrProofNotYetValid, "The proof is not yet valid.", nil)
-	}
-	if normalizedContext.Now.Add(-v.clockSkewTolerance).After(expiresAt) {
-		return VerifiedProtectedRequest{}, newVerificationError(ErrProofExpired, "The proof has expired.", nil)
-	}
 
-	// ── Signature verification (before semantic checks) ──────────────
+	// ── Signature verification (before any semantic check) ───────────
 	// Security principle: verify cryptographic integrity BEFORE interpreting
-	// semantic fields. Any mutation to the signed PCCB payload (scope,
-	// action_hash, etc.) must produce SIGNATURE_INVALID, not a semantic
-	// mismatch error. This matches the Python reference verifier (steps 4-5
-	// in PCCBVerifier.verify) and the conformance vector expectations.
+	// semantic fields, including the validity window. Any mutation to the
+	// signed PCCB payload must produce SIGNATURE_INVALID, never a semantic
+	// refusal that tells a forger which check it would fail. The order of
+	// every check below matches the Python reference verifier
+	// (PCCBVerifier.verify steps 4-11).
 	unsignedPayload, err := canonicalizeBytes(normalizedUnsignedPCCBPayload(normalizedPCCB))
 	if err != nil {
 		return VerifiedProtectedRequest{}, newVerificationError(
@@ -80,8 +74,17 @@ func (v *Verifier) Verify(intent ActionIntent, pccb PCCB, context VerificationCo
 	}
 
 	// ── Semantic checks (after signature is verified) ────────────────
+	if normalizedContext.Now.Add(v.clockSkewTolerance).Before(notBefore) {
+		return VerifiedProtectedRequest{}, newVerificationError(ErrProofNotYetValid, "The proof is not yet valid.", nil)
+	}
+	if normalizedContext.Now.Add(-v.clockSkewTolerance).After(expiresAt) {
+		return VerifiedProtectedRequest{}, newVerificationError(ErrProofExpired, "The proof has expired.", nil)
+	}
 	if !normalizedEqual(normalizedPCCB.Audience, normalizedContext.Audience) {
 		return VerifiedProtectedRequest{}, newVerificationError(ErrAudienceMismatch, "The proof audience does not match this endpoint.", nil)
+	}
+	if !normalizedEqual(normalizedPCCB.Target, normalizedIntent.Target) {
+		return VerifiedProtectedRequest{}, newVerificationError(ErrTargetMismatch, "The proof target does not exactly match the action intent.", nil)
 	}
 	if normalizedPCCB.Scope.Mode != "exact" {
 		return VerifiedProtectedRequest{}, newVerificationError(ErrScopeModeInvalid, "The proof scope mode is not supported.", nil)
@@ -100,9 +103,6 @@ func (v *Verifier) Verify(intent ActionIntent, pccb PCCB, context VerificationCo
 	}
 	if !normalizedEqual(normalizedPCCB.Action, normalizedIntent.Action) {
 		return VerifiedProtectedRequest{}, newVerificationError(ErrActionMismatch, "The proof action does not exactly match the action intent.", nil)
-	}
-	if !normalizedEqual(normalizedPCCB.Target, normalizedIntent.Target) {
-		return VerifiedProtectedRequest{}, newVerificationError(ErrTargetMismatch, "The proof target does not exactly match the action intent.", nil)
 	}
 	if normalizedPCCB.ActionHash.Algorithm != "sha-256" || !IsAcceptedCanonicalization(normalizedPCCB.ActionHash.Canonicalization) {
 		return VerifiedProtectedRequest{}, newVerificationError(ErrActionHashAlgorithmInvalid, "The proof action hash metadata is invalid.", nil)
