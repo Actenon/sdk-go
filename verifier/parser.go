@@ -73,11 +73,11 @@ func normalizeActionIntent(intent ActionIntent) (ActionIntent, error) {
 	if strings.TrimSpace(intent.IntentID) == "" {
 		return ActionIntent{}, newVerificationError(ErrInvalidIntent, "action_intent.intent_id must be a non-empty string.", nil)
 	}
-	issuedAt, err := normalizeTimestamp(intent.IssuedAt, "action_intent.issued_at", ErrInvalidIntent)
+	issuedAt, err := parseTimestamp(intent.IssuedAt, "action_intent.issued_at", ErrInvalidIntent)
 	if err != nil {
 		return ActionIntent{}, err
 	}
-	expiresAt, err := normalizeTimestamp(intent.ExpiresAt, "action_intent.expires_at", ErrInvalidIntent)
+	expiresAt, err := parseTimestamp(intent.ExpiresAt, "action_intent.expires_at", ErrInvalidIntent)
 	if err != nil {
 		return ActionIntent{}, err
 	}
@@ -93,6 +93,13 @@ func normalizeActionIntent(intent ActionIntent) (ActionIntent, error) {
 	if err != nil {
 		return ActionIntent{}, err
 	}
+	// Semantic rules of the reference's Action Intent intake.
+	if !expiresAt.After(issuedAt) {
+		return ActionIntent{}, newVerificationError(ErrInvalidIntent, "action_intent.expires_at must be later than issued_at.", nil)
+	}
+	if len(action.Parameters) == 0 {
+		return ActionIntent{}, newVerificationError(ErrInvalidIntent, "action_intent.action.parameters must contain at least one value.", nil)
+	}
 	target, err := normalizeTargetRef(intent.Target, "action_intent.target", ErrInvalidIntent)
 	if err != nil {
 		return ActionIntent{}, err
@@ -101,8 +108,8 @@ func normalizeActionIntent(intent ActionIntent) (ActionIntent, error) {
 		Contract:       Contract{Name: "action_intent", Version: "v1"},
 		IntentID:       intent.IntentID,
 		IdempotencyKey: intent.IdempotencyKey,
-		IssuedAt:       issuedAt,
-		ExpiresAt:      expiresAt,
+		IssuedAt:       formatTimestamp(issuedAt),
+		ExpiresAt:      formatTimestamp(expiresAt),
 		Tenant:         tenant,
 		Requester:      requester,
 		Action:         action,

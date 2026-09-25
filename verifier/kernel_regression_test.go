@@ -157,3 +157,16 @@ func TestSignatureValuesMustBeCanonicalBase64URL(t *testing.T) {
 		"hs256/sig_nontrailing_bits",
 	)
 }
+
+func TestVerifierEnforcesActionIntentSemantics(t *testing.T) {
+	// The reference's Action Intent intake refuses an expiry that is not
+	// after issuance and an action without parameters, even when a proof
+	// was issued for it.
+	runInteropCases(t,
+		"hs256/issuer_signed_window_equal",
+		"hs256/issuer_signed_window_inverted",
+		"hs256/issuer_signed_empty_params",
+		"ed25519/issuer_signed_window_inverted",
+		"ed25519/issuer_signed_empty_params",
+	)
+}
