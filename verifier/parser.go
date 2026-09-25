@@ -318,9 +318,15 @@ func normalizeScopeSpec(scope ScopeSpec, fieldName string) (ScopeSpec, error) {
 	if strings.TrimSpace(scope.Mode) == "" {
 		return ScopeSpec{}, newVerificationError(ErrInvalidPCCB, fieldName+".mode must be a non-empty string.", nil)
 	}
-	capabilities := cloneStringSlice(scope.Capabilities)
+	// Capabilities are signed in the order presented; never reorder them.
+	capabilities := append([]string{}, scope.Capabilities...)
 	if len(capabilities) == 0 {
 		return ScopeSpec{}, newVerificationError(ErrInvalidPCCB, fieldName+".capabilities must contain at least one capability.", nil)
+	}
+	for _, capability := range capabilities {
+		if capability == "" {
+			return ScopeSpec{}, newVerificationError(ErrInvalidPCCB, fieldName+".capabilities must contain non-empty strings.", nil)
+		}
 	}
 	return ScopeSpec{
 		Mode:                 scope.Mode,
@@ -506,7 +512,7 @@ func targetRefToMap(ref TargetRef) map[string]any {
 func scopeSpecToMap(scope ScopeSpec) map[string]any {
 	payload := map[string]any{
 		"mode":         scope.Mode,
-		"capabilities": cloneStringSlice(scope.Capabilities),
+		"capabilities": append([]string{}, scope.Capabilities...),
 		"single_use":   scope.SingleUse,
 	}
 	if len(scope.ResourceSelectors) > 0 {
