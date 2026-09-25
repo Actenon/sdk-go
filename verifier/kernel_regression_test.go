@@ -1,6 +1,11 @@
 package verifier_test
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	"github.com/Actenon/sdk-go/verifier"
+)
 
 // Targeted regressions against proofs minted by the Python reference. The
 // full kernel_interop_v1 matrix runs in TestKernelInteropVectors.
@@ -169,4 +174,45 @@ func TestVerifierEnforcesActionIntentSemantics(t *testing.T) {
 		"ed25519/issuer_signed_window_inverted",
 		"ed25519/issuer_signed_empty_params",
 	)
+}
+
+func TestVerifierBindsEscrowReferenceLikeReference(t *testing.T) {
+	// The signed payload carries escrow_reference whenever escrow_id is
+	// present (even " "), with single_use taken from scope.single_use.
+	runInteropCases(t,
+		"hs256/minted_escrow",
+		"hs256/minted_escrow_single_use_tamper",
+		"hs256/minted_escrow_removed",
+		"hs256/escrow_added_to_plain",
+		"hs256/pccb_escrow_space",
+		"ed25519/pccb_escrow_space",
+	)
+}
+
+func TestVerifiedEscrowReferenceCarriesOnlySignedValues(t *testing.T) {
+	document := loadInteropDocument(t)
+	for _, vector := range document.Cases {
+		if vector.ID != "hs256/minted_escrow_single_use_tamper" {
+			continue
+		}
+		now, _ := time.Parse(time.RFC3339, vector.Context.Now)
+		verified, err := verifier.NewVerifier(verifier.BuildLocalProofVerifier()).VerifyJSON(
+			[]byte(vector.Intent), []byte(vector.PCCB), verifier.VerificationContext{
+				RequestID:         vector.Context.RequestID,
+				Audience:          verifier.AudienceRef{Type: "service", ID: "portable-hello-world-endpoint"},
+				Now:               now,
+				ScopeCapabilities: vector.Context.ScopeCapabilities,
+			})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// escrow_reference.single_use is not signed (the signed payload uses
+		// scope.single_use); the presented false must not be surfaced.
+		if verified.PCCB.EscrowReference == nil || !verified.PCCB.Scope.SingleUse ||
+			verified.PCCB.EscrowReference.SingleUse != verified.PCCB.Scope.SingleUse {
+			t.Fatalf("verified escrow reference carries an unsigned value: %+v", verified.PCCB.EscrowReference)
+		}
+		return
+	}
+	t.Fatal("interop case not found")
 }

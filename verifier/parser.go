@@ -200,7 +200,7 @@ func normalizePCCB(pccb PCCB) (PCCB, error) {
 		ActionHash:      actionHash,
 		Signature:       signature,
 		Extensions:      cloneJSONObject(pccb.Extensions),
-		EscrowReference: normalizeEscrowReference(pccb.EscrowReference),
+		EscrowReference: normalizeEscrowReference(pccb.EscrowReference, scope.SingleUse),
 	}
 	return normalized, nil
 }
@@ -342,13 +342,17 @@ func normalizeSignatureSpec(ref SignatureSpec, fieldName string) (SignatureSpec,
 	return ref, nil
 }
 
-func normalizeEscrowReference(reference *EscrowReference) *EscrowReference {
-	if reference == nil || strings.TrimSpace(reference.EscrowID) == "" {
+// normalizeEscrowReference mirrors the reference: escrow_reference is part of
+// the signed payload whenever escrow_id is present, and its single_use is
+// always scope.single_use (the presented escrow_reference.single_use is not
+// signed, so it is never surfaced).
+func normalizeEscrowReference(reference *EscrowReference, singleUse bool) *EscrowReference {
+	if reference == nil || reference.EscrowID == "" {
 		return nil
 	}
 	return &EscrowReference{
 		EscrowID:  reference.EscrowID,
-		SingleUse: reference.SingleUse,
+		SingleUse: singleUse,
 	}
 }
 
@@ -421,7 +425,7 @@ func normalizedUnsignedPCCBPayload(pccb PCCB) map[string]any {
 		"nonce":       pccb.Nonce,
 		"action_hash": actionHashToMap(pccb.ActionHash),
 	}
-	if strings.TrimSpace(pccb.IntentID) != "" {
+	if pccb.IntentID != "" {
 		payload["intent_id"] = pccb.IntentID
 	}
 	if pccb.EscrowReference != nil {
