@@ -7,7 +7,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"testing"
 	"time"
@@ -57,30 +56,6 @@ type interopDocument struct {
 	Cases             []interopCase `json:"cases"`
 }
 
-var interopBase64URL = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
-
-// ed25519TestVerifier is an Ed25519 SignatureVerifier equivalent to the
-// reference's well-known EdDSA verifier, plugged in through the exported
-// SignatureVerifier interface.
-type ed25519TestVerifier struct {
-	keyID     string
-	publicKey ed25519.PublicKey
-}
-
-func (v ed25519TestVerifier) Verify(payload []byte, signature verifier.SignatureSpec) bool {
-	if signature.Algorithm != "EdDSA" || signature.KeyID != v.keyID || signature.Encoding != "base64url" {
-		return false
-	}
-	if !interopBase64URL.MatchString(signature.Value) {
-		return false
-	}
-	raw, err := base64.RawURLEncoding.Strict().DecodeString(signature.Value)
-	if err != nil || len(raw) != ed25519.SignatureSize {
-		return false
-	}
-	return ed25519.Verify(v.publicKey, payload, raw)
-}
-
 func loadInteropDocument(t *testing.T) interopDocument {
 	t.Helper()
 	_, filename, _, ok := runtime.Caller(0)
@@ -115,7 +90,12 @@ func runInteropCase(t *testing.T, document interopDocument, vector interopCase) 
 		if err != nil || len(publicKey) != ed25519.PublicKeySize {
 			t.Fatalf("invalid interop Ed25519 public key: %v", err)
 		}
-		signatureVerifier = ed25519TestVerifier{keyID: document.Signers.Ed25519.KeyID, publicKey: publicKey}
+		signatureVerifier, err = verifier.NewEd25519Verifier(map[string]ed25519.PublicKey{
+			document.Signers.Ed25519.KeyID: publicKey,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 	default:
 		t.Fatalf("unknown signer %q", vector.Signer)
 	}
