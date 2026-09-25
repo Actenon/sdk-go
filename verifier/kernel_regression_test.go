@@ -141,3 +141,19 @@ func TestVerifierParsesJSONLikeTheReferenceIngress(t *testing.T) {
 		"hs256/pccb_escrow_empty",
 	)
 }
+
+func TestSignatureValuesMustBeCanonicalBase64URL(t *testing.T) {
+	// base64.RawURLEncoding ignores CR/LF anywhere in its input, so a
+	// signature with inserted line breaks verified (a malleable proof) while
+	// the reference refuses it.
+	runInteropCases(t,
+		"hs256/sig_newline",
+		"hs256/sig_crlf",
+		"hs256/sig_space",
+		"hs256/sig_padded",
+		"hs256/sig_padded2",
+		"hs256/sig_std_alphabet",
+		"hs256/sig_truncated",
+		"hs256/sig_nontrailing_bits",
+	)
+}

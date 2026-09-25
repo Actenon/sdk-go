@@ -3,7 +3,6 @@ package verifier
 import (
 	"crypto/ed25519"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -170,12 +169,15 @@ func VerifyCountersignature(
 	if !ok || x == "" {
 		return VerifiedCountersignature{}, countersignatureError("TRUSTED_KEYS_INVALID", "public_key_jwk.x must be a base64url string")
 	}
-	publicKey, err := base64.RawURLEncoding.DecodeString(x)
+	publicKey, err := decodeBase64URL(x)
 	if err != nil || len(publicKey) != ed25519.PublicKeySize {
 		return VerifiedCountersignature{}, countersignatureError("TRUSTED_KEYS_INVALID", "public_key_jwk.x must encode a 32-byte Ed25519 public key")
 	}
-	signatureBytes, err := base64.RawURLEncoding.DecodeString(signature.Value)
-	if err != nil || len(signatureBytes) != ed25519.SignatureSize {
+	signatureBytes, err := decodeBase64URL(signature.Value)
+	if err != nil {
+		return VerifiedCountersignature{}, countersignatureError("INVALID_COUNTERSIGNATURE", "counter-signature signature must be unpadded base64url")
+	}
+	if len(signatureBytes) != ed25519.SignatureSize {
 		return VerifiedCountersignature{}, countersignatureError("SIGNATURE_INVALID", "counter-signature must encode a 64-byte Ed25519 signature")
 	}
 	statement := map[string]any{

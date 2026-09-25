@@ -2,7 +2,6 @@ package verifier
 
 import (
 	"crypto/ed25519"
-	"encoding/base64"
 	"fmt"
 	"log"
 	"time"
@@ -325,11 +324,11 @@ func verifyTrustArtifactSignature(
 	if !ok {
 		return trustArtifactError("TRUSTED_KEYS_INVALID", "public key x is required")
 	}
-	publicKey, err := base64.RawURLEncoding.DecodeString(x)
+	publicKey, err := decodeBase64URL(x)
 	if err != nil || len(publicKey) != ed25519.PublicKeySize {
 		return trustArtifactError("TRUSTED_KEYS_INVALID", "public key is invalid")
 	}
-	signatureBytes, err := base64.RawURLEncoding.DecodeString(signature.Value)
+	signatureBytes, err := decodeBase64URL(signature.Value)
 	if err != nil || len(signatureBytes) != ed25519.SignatureSize {
 		return trustArtifactError("SIGNATURE_INVALID", "signature is invalid")
 	}

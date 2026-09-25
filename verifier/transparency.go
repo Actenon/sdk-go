@@ -3,7 +3,6 @@ package verifier
 import (
 	"crypto/ed25519"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -174,11 +173,11 @@ func VerifyCheckpointSignature(
 	if !ok || x == "" {
 		return VerifiedCheckpoint{}, transparencyError("TRUSTED_KEYS_INVALID", "public_key_jwk.x must be a base64url string")
 	}
-	publicKey, err := base64.RawURLEncoding.DecodeString(x)
+	publicKey, err := decodeBase64URL(x)
 	if err != nil || len(publicKey) != ed25519.PublicKeySize {
 		return VerifiedCheckpoint{}, transparencyError("TRUSTED_KEYS_INVALID", "public_key_jwk.x must encode a 32-byte Ed25519 public key")
 	}
-	signature, err := base64.RawURLEncoding.DecodeString(checkpoint.Signature.Value)
+	signature, err := decodeBase64URL(checkpoint.Signature.Value)
 	if err != nil || len(signature) != ed25519.SignatureSize {
 		return VerifiedCheckpoint{}, transparencyError("SIGNATURE_INVALID", "checkpoint signature must encode a 64-byte Ed25519 signature")
 	}
