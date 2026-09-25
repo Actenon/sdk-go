@@ -92,3 +92,52 @@ func TestVerifierCanonicalizesLikeReference(t *testing.T) {
 		"hs256/depth_params_124",
 	)
 }
+
+func TestVerifierParsesJSONLikeTheReferenceIngress(t *testing.T) {
+	// The reference's JSON ingress refuses duplicate members and oversized
+	// or over-deep documents, treats member names case-sensitively, and
+	// refuses null for objects, arrays and booleans. encoding/json keeps the
+	// last duplicate, binds "Audience", "AUDIENCE" or a long-s "scope" to
+	// struct fields, and decodes null as an empty value, so without these checks
+	// the Go verifier could act on a different document than the one the
+	// reference (or the issuer) saw.
+	runInteropCases(t,
+		"hs256/dup_param_key_same",
+		"hs256/dup_param_key_diff_last_signed",
+		"hs256/dup_param_key_diff_first_signed",
+		"hs256/dup_top_audience_pccb",
+		"hs256/dup_top_audience_pccb_signed_last",
+		"hs256/case_Audience_extra",
+		"hs256/case_AUDIENCE_only",
+		"hs256/case_Target_intent_extra",
+		"hs256/case_target_resource_ID_extra",
+		"hs256/case_longs_scope",
+		"hs256/case_kelvin_key_id",
+		"hs256/intent_tenant_attr_null",
+		"hs256/intent_constraints_null",
+		"hs256/intent_target_selectors_null",
+		"hs256/pccb_extensions_null",
+		"hs256/pccb_tenant_attr_null",
+		"hs256/pccb_scope_selectors_null",
+		"hs256/pccb_scope_pc_null",
+		"hs256/pccb_scope_single_use_str",
+		"hs256/pccb_escrow_null",
+		"hs256/intent_requester_dn_null",
+		"hs256/pccb_intent_id_null",
+		"hs256/lone_surrogate_param",
+		"hs256/amount_escaped_key",
+		"hs256/currency_escaped_value",
+		"hs256/trailing_garbage_intent",
+		"hs256/two_objects_pccb",
+		"hs256/bom_intent",
+		"hs256/depth_params_125",
+		"hs256/depth_params_128",
+		"hs256/depth_params_200",
+		"hs256/intent_target_uri_empty",
+		"hs256/intent_dn_empty_proof_absent",
+		"hs256/intent_target_uri_empty_proof_absent",
+		"hs256/pccb_intent_id_empty",
+		"hs256/pccb_display_name_empty",
+		"hs256/pccb_escrow_empty",
+	)
+}

@@ -2,8 +2,6 @@ package verifier
 
 import (
 	"bytes"
-	"encoding/json"
-	"io"
 	"sort"
 	"strings"
 	"time"
@@ -25,28 +23,15 @@ func ParsePCCBJSON(raw []byte) (PCCB, error) {
 	return normalizePCCB(pccb)
 }
 
+// coreJSONOptions are the strict decoding rules for Action Intents and
+// PCCBs; see decodeStrictJSON.
+var coreJSONOptions = strictJSONOptions{rejectNullContainers: true, rejectEmptyOptionalStrings: true}
+
 func decodeJSON(raw []byte, target any, code VerificationErrorCode, artifactName string) error {
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-	if err := decoder.Decode(target); err != nil {
+	if err := decodeStrictJSON(raw, target, coreJSONOptions); err != nil {
 		return newVerificationError(code, "failed to decode "+artifactName+" JSON payload.", nil)
 	}
-	if err := ensureNoTrailingJSON(decoder, code, artifactName); err != nil {
-		return err
-	}
 	return nil
-}
-
-func ensureNoTrailingJSON(decoder *json.Decoder, code VerificationErrorCode, artifactName string) error {
-	var trailing any
-	err := decoder.Decode(&trailing)
-	if err == io.EOF {
-		return nil
-	}
-	if err != nil {
-		return newVerificationError(code, "failed while checking trailing "+artifactName+" JSON content.", nil)
-	}
-	return newVerificationError(code, artifactName+" JSON payload must contain a single top-level object.", nil)
 }
 
 func parseTimestamp(raw string, fieldName string, code VerificationErrorCode) (time.Time, error) {

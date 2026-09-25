@@ -3,7 +3,6 @@ package verifier
 import (
 	"crypto/ed25519"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -78,7 +77,7 @@ func trustArtifactError(code string, message string) error {
 
 func ParseIssuerStatusJSON(raw []byte) (IssuerStatusArtifact, error) {
 	var artifact IssuerStatusArtifact
-	if err := json.Unmarshal(raw, &artifact); err != nil {
+	if err := decodeStrictJSON(raw, &artifact, strictJSONOptions{rejectEmptyOptionalStrings: true, exactContracts: true}); err != nil {
 		return artifact, trustArtifactError("INVALID_ISSUER_STATUS", "issuer status must be valid JSON")
 	}
 	return artifact, nil
@@ -86,7 +85,7 @@ func ParseIssuerStatusJSON(raw []byte) (IssuerStatusArtifact, error) {
 
 func ParseApprovalArtifactJSON(raw []byte) (ApprovalArtifact, error) {
 	var artifact ApprovalArtifact
-	if err := json.Unmarshal(raw, &artifact); err != nil {
+	if err := decodeStrictJSON(raw, &artifact, strictJSONOptions{rejectEmptyOptionalStrings: true, exactContracts: true}); err != nil {
 		return artifact, trustArtifactError("INVALID_APPROVAL_ARTIFACT", "approval must be valid JSON")
 	}
 	return artifact, nil

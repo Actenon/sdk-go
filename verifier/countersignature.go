@@ -1,7 +1,6 @@
 package verifier
 
 import (
-	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
@@ -74,9 +73,7 @@ func countersignatureError(code string, message string) error {
 
 func ParseReceiptCountersignatureJSON(raw []byte) (ReceiptCountersignature, error) {
 	var artifact ReceiptCountersignature
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-	if err := decoder.Decode(&artifact); err != nil {
+	if err := decodeStrictJSON(raw, &artifact, strictJSONOptions{rejectEmptyOptionalStrings: true, exactContracts: true}); err != nil {
 		return ReceiptCountersignature{}, countersignatureError("INVALID_COUNTERSIGNATURE", "counter-signature must be valid JSON")
 	}
 	return artifact, nil
@@ -84,7 +81,7 @@ func ParseReceiptCountersignatureJSON(raw []byte) (ReceiptCountersignature, erro
 
 func ParseTrustedCounterSignatureKeysJSON(raw []byte) (TrustedCounterSignatureKeys, error) {
 	var keys TrustedCounterSignatureKeys
-	if err := json.Unmarshal(raw, &keys); err != nil {
+	if err := decodeStrictJSON(raw, &keys, strictJSONOptions{rejectEmptyOptionalStrings: true}); err != nil {
 		return TrustedCounterSignatureKeys{}, countersignatureError("TRUSTED_KEYS_INVALID", "trusted key set must be valid JSON")
 	}
 	return keys, nil

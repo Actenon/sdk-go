@@ -304,7 +304,12 @@ def add(case_id, intent, pccb, ctx=None, skew_ms=0, alg="hs256", note=""):
         "pccb": pccb_raw,
         "expected": expected_of(python_decide(intent_raw, pccb_raw, ctx, skew_ms, alg, strict=True)),
     }
-    overrides = SDK_OVERRIDES.get(case_id)
+    overrides = {
+        sdk: override
+        for sdk, override in SDK_OVERRIDES.get(case_id, {}).items()
+        if override["outcome"] != case["expected"]["outcome"]
+        or override.get("reason_code") != case["expected"].get("reason_code")
+    }
     if overrides:
         case["sdk_overrides"] = overrides
     CASES.append(case)
@@ -322,8 +327,53 @@ def setp(doc, path, value):
 
 DELETE = object()
 
-# Filled in below the case definitions.
-SDK_OVERRIDES: dict = {}
+
+
+def _stricter(reason, code="INVALID_INPUT", sdks=("go", "rust")):
+    return {sdk: {"outcome": "refused", "reason_code": code, "reason": reason} for sdk in sdks}
+
+
+_EMPTY_OPTIONAL = (
+    "Present-but-empty optional strings are refused (the schemas require minLength >= 1). "
+    "The reference signs and binds them, but Go cannot distinguish them from absent members, "
+    "so both SDKs refuse them rather than bind the wrong document."
+)
+_NOT_A_STRING = "display_name must be a string (schema); the reference accepts any JSON value."
+_BLANK_ID = "Whitespace-only identifiers are refused at parse time (schema identifier pattern)."
+_RFC3339 = "Timestamps must be RFC 3339; the reference also accepts other ISO 8601 forms via datetime.fromisoformat."
+_BASE64URL = (
+    "Signature values must be canonical, unpadded base64url; the reference's decoder also accepts "
+    "'=' padding, the standard alphabet and non-zero trailing bits (signature malleability)."
+)
+_NOT_JSON = "Not valid JSON/Unicode (RFC 8259); refused at parse time instead of failing the action binding."
+_GO_CASE_FOLD = (
+    "encoding/json binds object members to struct fields case-insensitively, so Go refuses members "
+    "that match a field name only case-insensitively instead of acting on a value the reference ignores."
+)
+
+SDK_OVERRIDES: dict = {
+    **{case: _stricter(_EMPTY_OPTIONAL) for case in (
+        "intent_target_uri_empty", "intent_requester_dn_empty_vs_present", "pccb_intent_id_empty",
+        "pccb_display_name_empty", "pccb_issuer_dn_empty", "pccb_escrow_empty",
+        "intent_dn_empty_proof_absent", "intent_target_uri_empty_proof_absent", "issuer_signed_dn_empty",
+        "issuer_signed_uri_empty", "issuer_signed_audience_uri_empty", "issuer_signed_intent_id_empty",
+        "issuer_signed_escrow_empty",
+    )},
+    "intent_requester_dn_int": _stricter(_NOT_A_STRING),
+    "issuer_signed_dn_int": _stricter(_NOT_A_STRING),
+    "intent_tenant_space": _stricter(_BLANK_ID),
+    "pccb_nbf_lower_t": _stricter(_RFC3339),
+    "pccb_nbf_space": _stricter(_RFC3339),
+    "pccb_nbf_no_seconds": _stricter(_RFC3339),
+    "sig_padded": _stricter(_BASE64URL, "SIGNATURE_INVALID"),
+    "sig_std_alphabet": _stricter(_BASE64URL, "SIGNATURE_INVALID"),
+    "sig_nontrailing_bits": _stricter(_BASE64URL, "SIGNATURE_INVALID"),
+    "nan_param": _stricter(_NOT_JSON),
+    "lone_surrogate_param": _stricter(_NOT_JSON),
+    "case_Audience_extra": _stricter(_GO_CASE_FOLD, sdks=("go",)),
+    "case_Target_intent_extra": _stricter(_GO_CASE_FOLD, sdks=("go",)),
+    "case_target_resource_ID_extra": _stricter(_GO_CASE_FOLD, sdks=("go",)),
+}
 
 
 def mutated(doc, path, value):

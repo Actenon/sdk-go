@@ -55,7 +55,7 @@ type ActionHashSpec struct {
 }
 
 type EscrowReference struct {
-	EscrowID  string `json:"escrow_id"`
+	EscrowID  string `json:"escrow_id,omitempty"`
 	SingleUse bool   `json:"single_use,omitempty"`
 }
 

@@ -93,7 +93,7 @@ func transparencyError(code string, message string) error {
 
 func ParseTransparencyCheckpointJSON(raw []byte) (TransparencyCheckpoint, error) {
 	var checkpoint TransparencyCheckpoint
-	if err := json.Unmarshal(raw, &checkpoint); err != nil {
+	if err := decodeStrictJSON(raw, &checkpoint, strictJSONOptions{rejectEmptyOptionalStrings: true, exactContracts: true}); err != nil {
 		return TransparencyCheckpoint{}, transparencyError("INVALID_CHECKPOINT", "checkpoint must be valid JSON")
 	}
 	return checkpoint, nil
@@ -101,7 +101,7 @@ func ParseTransparencyCheckpointJSON(raw []byte) (TransparencyCheckpoint, error)
 
 func ParseTransparencyInclusionProofJSON(raw []byte) (TransparencyInclusionProof, error) {
 	var proof TransparencyInclusionProof
-	if err := json.Unmarshal(raw, &proof); err != nil {
+	if err := decodeStrictJSON(raw, &proof, strictJSONOptions{rejectEmptyOptionalStrings: true, exactContracts: true}); err != nil {
 		return TransparencyInclusionProof{}, transparencyError("INVALID_INCLUSION_PROOF", "inclusion proof must be valid JSON")
 	}
 	return proof, nil
@@ -109,7 +109,7 @@ func ParseTransparencyInclusionProofJSON(raw []byte) (TransparencyInclusionProof
 
 func ParseTransparencyConsistencyProofJSON(raw []byte) (TransparencyConsistencyProof, error) {
 	var proof TransparencyConsistencyProof
-	if err := json.Unmarshal(raw, &proof); err != nil {
+	if err := decodeStrictJSON(raw, &proof, strictJSONOptions{rejectEmptyOptionalStrings: true, exactContracts: true}); err != nil {
 		return TransparencyConsistencyProof{}, transparencyError("INVALID_CONSISTENCY_PROOF", "consistency proof must be valid JSON")
 	}
 	return proof, nil
