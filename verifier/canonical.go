@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -27,10 +29,23 @@ func IsAcceptedCanonicalization(label string) bool {
 	return label == CanonicalizationProfile || label == LegacyCanonicalizationProfile
 }
 
+// maxCanonicalDepth and maxCanonicalOutputBytes are the ACTENON-JCS-STRICT-1
+// limits enforced by the reference canonicaliser: no value may sit deeper
+// than 128 levels (the root is level 1) and the output may not exceed 1 MiB.
+const (
+	maxCanonicalDepth       = 128
+	maxCanonicalOutputBytes = 1_048_576
+)
+
+var canonicalIntegerPattern = regexp.MustCompile(`^-?(0|[1-9][0-9]*)$`)
+
 func canonicalizeJSON(value any) (string, error) {
 	var builder strings.Builder
-	if err := writeCanonicalJSON(&builder, value); err != nil {
+	if err := writeCanonicalJSON(&builder, value, 1); err != nil {
 		return "", err
+	}
+	if builder.Len() > maxCanonicalOutputBytes {
+		return "", fmt.Errorf("canonical JSON output exceeds maximum size %d bytes", maxCanonicalOutputBytes)
 	}
 	return builder.String(), nil
 }
@@ -52,7 +67,48 @@ func sha256Hex(value any) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-func writeCanonicalJSON(builder *strings.Builder, value any) error {
+// writeCanonicalString encodes a string exactly like the reference
+// canonicaliser (Python json.dumps with ensure_ascii=False): only '"', '\\'
+// and C0 control characters are escaped; everything else, including '<',
+// '>', '&', U+2028 and U+2029, is emitted as raw UTF-8. Invalid UTF-8 has no
+// canonical form and is refused rather than replaced.
+func writeCanonicalString(builder *strings.Builder, value string) error {
+	if !utf8.ValidString(value) {
+		return fmt.Errorf("canonical JSON strings must be valid UTF-8")
+	}
+	builder.WriteByte('"')
+	for _, r := range value {
+		switch r {
+		case '"':
+			builder.WriteString(`\"`)
+		case '\\':
+			builder.WriteString(`\\`)
+		case '\b':
+			builder.WriteString(`\b`)
+		case '\f':
+			builder.WriteString(`\f`)
+		case '\n':
+			builder.WriteString(`\n`)
+		case '\r':
+			builder.WriteString(`\r`)
+		case '\t':
+			builder.WriteString(`\t`)
+		default:
+			if r < 0x20 {
+				fmt.Fprintf(builder, `\u%04x`, r)
+			} else {
+				builder.WriteRune(r)
+			}
+		}
+	}
+	builder.WriteByte('"')
+	return nil
+}
+
+func writeCanonicalJSON(builder *strings.Builder, value any, depth int) error {
+	if depth > maxCanonicalDepth {
+		return fmt.Errorf("JSON value exceeds maximum nesting depth %d", maxCanonicalDepth)
+	}
 	if value == nil {
 		builder.WriteString("null")
 		return nil
@@ -67,16 +123,15 @@ func writeCanonicalJSON(builder *strings.Builder, value any) error {
 		}
 		return nil
 	case string:
-		raw, err := json.Marshal(typed)
-		if err != nil {
-			return err
-		}
-		builder.Write(raw)
-		return nil
+		return writeCanonicalString(builder, typed)
 	case json.Number:
 		raw := typed.String()
-		if strings.ContainsAny(raw, ".eE") {
+		if !canonicalIntegerPattern.MatchString(raw) {
 			return fmt.Errorf("floating-point values are not supported in canonical action hashing")
+		}
+		// JSON "-0" is the integer zero, which the reference renders as "0".
+		if raw == "-0" {
+			raw = "0"
 		}
 		builder.WriteString(raw)
 		return nil
@@ -122,7 +177,7 @@ func writeCanonicalJSON(builder *strings.Builder, value any) error {
 			if index > 0 {
 				builder.WriteByte(',')
 			}
-			if err := writeCanonicalJSON(builder, reflected.Index(index).Interface()); err != nil {
+			if err := writeCanonicalJSON(builder, reflected.Index(index).Interface(), depth+1); err != nil {
 				return err
 			}
 		}
@@ -143,13 +198,11 @@ func writeCanonicalJSON(builder *strings.Builder, value any) error {
 			if index > 0 {
 				builder.WriteByte(',')
 			}
-			rawKey, err := json.Marshal(key)
-			if err != nil {
+			if err := writeCanonicalString(builder, key); err != nil {
 				return err
 			}
-			builder.Write(rawKey)
 			builder.WriteByte(':')
-			if err := writeCanonicalJSON(builder, reflected.MapIndex(reflect.ValueOf(key)).Interface()); err != nil {
+			if err := writeCanonicalJSON(builder, reflected.MapIndex(reflect.ValueOf(key)).Interface(), depth+1); err != nil {
 				return err
 			}
 		}

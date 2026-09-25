@@ -70,3 +70,25 @@ func TestVerifierDoesNotReorderSignedCapabilities(t *testing.T) {
 		"ed25519/issuer_unsorted_caps",
 	)
 }
+
+func TestVerifierCanonicalizesLikeReference(t *testing.T) {
+	// Strings are canonicalized without HTML/U+2028 escaping, "-0" is the
+	// integer zero, bindings are compared on canonical bytes, and the
+	// profile's depth limit applies.
+	runInteropCases(t,
+		"hs256/minted_html",
+		"hs256/minted_u2028",
+		"ed25519/minted_html",
+		"hs256/minted_control",
+		"hs256/minted_emoji",
+		"hs256/minted_keys_order",
+		"hs256/minted_escape_chars",
+		"hs256/minted_big_ints",
+		"hs256/minted_bigger_ints",
+		"hs256/minted_empty_string_key",
+		"hs256/neg_zero_intent",
+		"hs256/neg_zero_both",
+		"hs256/nfd_intent_vs_nfc_proof",
+		"hs256/depth_params_124",
+	)
+}

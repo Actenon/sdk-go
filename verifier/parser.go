@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -532,6 +531,42 @@ func actionHashToMap(ref ActionHashSpec) map[string]any {
 	}
 }
 
+// normalizedEqual compares two bound references by their canonical JSON
+// bytes, as the reference does (_canonical_equal): equivalent encodings of
+// the same value (for example the integers 0 and -0) are equal, and values
+// that cannot be canonicalized never match.
 func normalizedEqual(left any, right any) bool {
-	return reflect.DeepEqual(left, right)
+	leftMap, ok := boundReferenceMap(left)
+	if !ok {
+		return false
+	}
+	rightMap, ok := boundReferenceMap(right)
+	if !ok {
+		return false
+	}
+	leftBytes, err := canonicalizeBytes(leftMap)
+	if err != nil {
+		return false
+	}
+	rightBytes, err := canonicalizeBytes(rightMap)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(leftBytes, rightBytes)
+}
+
+func boundReferenceMap(value any) (map[string]any, bool) {
+	switch typed := value.(type) {
+	case AudienceRef:
+		return audienceRefToMap(typed), true
+	case TenantRef:
+		return tenantRefToMap(typed), true
+	case PartyRef:
+		return partyRefToMap(typed), true
+	case ActionSpec:
+		return actionSpecToMap(typed), true
+	case TargetRef:
+		return targetRefToMap(typed), true
+	}
+	return nil, false
 }
