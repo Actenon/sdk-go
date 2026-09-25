@@ -46,16 +46,7 @@ func sharedVectorRoot(t *testing.T) string {
 	if !ok {
 		t.Fatal("unable to resolve shared vector test path")
 	}
-	return filepath.Clean(filepath.Join(
-		filepath.Dir(filename),
-		"..",
-		"..",
-		"..",
-		"actenon",
-		"conformance",
-		"vectors",
-		"verifier_sdk_v1",
-	))
+	return filepath.Join(filepath.Dir(filename), "..", "fixtures", "verifier_sdk_v1")
 }
 
 func loadSharedJSON(t *testing.T, name string, target any) {
