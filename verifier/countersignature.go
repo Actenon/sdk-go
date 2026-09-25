@@ -105,7 +105,9 @@ func VerifyCountersignature(
 	if err := validateReceiptDigest(countersignature.ReceiptDigest); err != nil {
 		return VerifiedCountersignature{}, err
 	}
-	if countersignature.ReceiptDigest != expectedDigest {
+	// Like the reference, bind by digest value: the canonicalisation label may
+	// legitimately differ between legacy and current artifacts.
+	if countersignature.ReceiptDigest.Value != expectedDigest.Value {
 		return VerifiedCountersignature{}, countersignatureError("RECEIPT_DIGEST_MISMATCH", "counter-signature receipt digest does not match the supplied receipt or digest")
 	}
 	if countersignature.Witness.Type == "" || countersignature.Witness.ID == "" {
@@ -209,8 +211,8 @@ func VerifyCountersignature(
 }
 
 func validateReceiptDigest(digest ReceiptDigest) error {
-	if digest.Algorithm != "sha-256" || digest.Canonicalization != "RFC8785-JCS" || !sha256HexPattern.MatchString(digest.Value) {
-		return countersignatureError("INVALID_RECEIPT_DIGEST", "receipt digest must declare sha-256, RFC8785-JCS, and a lowercase 64-character hex value")
+	if digest.Algorithm != "sha-256" || !IsAcceptedCanonicalization(digest.Canonicalization) || !sha256HexPattern.MatchString(digest.Value) {
+		return countersignatureError("INVALID_RECEIPT_DIGEST", "receipt digest must declare sha-256, a known canonicalization profile, and a lowercase 64-character hex value")
 	}
 	return nil
 }
@@ -245,7 +247,7 @@ func resolveReceiptDigest(receiptOrDigest any) (ReceiptDigest, error) {
 	sum := sha256.Sum256(canonical)
 	return ReceiptDigest{
 		Algorithm:        "sha-256",
-		Canonicalization: "RFC8785-JCS",
+		Canonicalization: CanonicalizationProfile,
 		Value:            hex.EncodeToString(sum[:]),
 	}, nil
 }

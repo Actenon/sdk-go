@@ -11,6 +11,22 @@ import (
 	"strings"
 )
 
+const (
+	// CanonicalizationProfile is the canonicalisation identifier the Kernel
+	// stamps on newly minted proofs, receipt digests and approvals.
+	CanonicalizationProfile = "ACTENON-JCS-STRICT-1"
+	// LegacyCanonicalizationProfile is the identifier carried by historical
+	// artifacts. It names the same canonicalisation rules and remains
+	// accepted.
+	LegacyCanonicalizationProfile = "RFC8785-JCS"
+)
+
+// IsAcceptedCanonicalization reports whether label is a canonicalisation
+// profile accepted by the reference verifier.
+func IsAcceptedCanonicalization(label string) bool {
+	return label == CanonicalizationProfile || label == LegacyCanonicalizationProfile
+}
+
 func canonicalizeJSON(value any) (string, error) {
 	var builder strings.Builder
 	if err := writeCanonicalJSON(&builder, value); err != nil {

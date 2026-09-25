@@ -215,11 +215,18 @@ func verifyApprovalArtifact(
 	if approval.Decision != "approved" {
 		return VerifiedApprovalArtifact{}, trustArtifactError("APPROVAL_NOT_GRANTED", "approval decision is not approved")
 	}
-	if approval.ActionHash.Algorithm != "sha-256" || approval.ActionHash.Canonicalization != "RFC8785-JCS" || !sha256HexPattern.MatchString(approval.ActionHash.Value) {
+	if !validApprovalActionHash(approval.ActionHash) {
 		return VerifiedApprovalArtifact{}, trustArtifactError("INVALID_APPROVAL_ARTIFACT", "approval action hash is invalid")
 	}
-	if expectedActionHash != nil && approval.ActionHash != *expectedActionHash {
-		return VerifiedApprovalArtifact{}, trustArtifactError("APPROVAL_ACTION_MISMATCH", "approval is not bound to the expected action")
+	if expectedActionHash != nil {
+		if !validApprovalActionHash(*expectedActionHash) {
+			return VerifiedApprovalArtifact{}, trustArtifactError("INVALID_APPROVAL_ARTIFACT", "expected action hash is invalid")
+		}
+		// Like the reference, bind by hash value: the canonicalisation label
+		// may legitimately differ between legacy and current artifacts.
+		if approval.ActionHash.Value != expectedActionHash.Value {
+			return VerifiedApprovalArtifact{}, trustArtifactError("APPROVAL_ACTION_MISMATCH", "approval is not bound to the expected action")
+		}
 	}
 	issuedAt, err := time.Parse(time.RFC3339, approval.IssuedAt)
 	if err != nil {
@@ -248,6 +255,12 @@ func verifyApprovalArtifact(
 		ApprovalType: approval.ApprovalType, Decision: approval.Decision,
 		ActionHash: approval.ActionHash, IssuedAt: issuedAt, KeyID: approval.Signature.KeyID,
 	}, nil
+}
+
+func validApprovalActionHash(actionHash ActionHashSpec) bool {
+	return actionHash.Algorithm == "sha-256" &&
+		IsAcceptedCanonicalization(actionHash.Canonicalization) &&
+		sha256HexPattern.MatchString(actionHash.Value)
 }
 
 func selectTrustArtifactKey(

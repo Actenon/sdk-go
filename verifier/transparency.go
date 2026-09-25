@@ -451,8 +451,8 @@ func validateCheckpoint(checkpoint TransparencyCheckpoint) ([32]byte, time.Time,
 }
 
 func validateTransparencyDigest(digest ReceiptDigest) error {
-	if digest.Algorithm != "sha-256" || digest.Canonicalization != "RFC8785-JCS" || !sha256HexPattern.MatchString(digest.Value) {
-		return transparencyError("INVALID_LEAF_DIGEST", "leaf digest must declare sha-256, RFC8785-JCS, and a lowercase 64-character hex value")
+	if digest.Algorithm != "sha-256" || !IsAcceptedCanonicalization(digest.Canonicalization) || !sha256HexPattern.MatchString(digest.Value) {
+		return transparencyError("INVALID_LEAF_DIGEST", "leaf digest must declare sha-256, a known canonicalization profile, and a lowercase 64-character hex value")
 	}
 	return nil
 }
