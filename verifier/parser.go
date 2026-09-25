@@ -55,10 +55,23 @@ func parseTimestamp(raw string, fieldName string, code VerificationErrorCode) (t
 		return time.Time{}, newVerificationError(code, fieldName+" must be an RFC3339 timestamp string.", nil)
 	}
 	parsed, err := time.Parse(time.RFC3339, raw)
-	if err != nil {
+	if err != nil || parsed.Year() < 1 {
 		return time.Time{}, newVerificationError(ErrInvalidTimestamp, fieldName+" must be an RFC3339 timestamp string.", nil)
 	}
-	return parsed.UTC(), nil
+	// The reference keeps microsecond precision and drops anything finer.
+	return parsed.UTC().Truncate(time.Microsecond), nil
+}
+
+// formatTimestamp renders t exactly like the reference's canonical
+// timestamp form (Python datetime.isoformat in UTC with a "Z" suffix): the
+// fractional part is present, with six digits, only when the microsecond
+// component is non-zero. Signed payloads and action hashes embed this form.
+func formatTimestamp(t time.Time) string {
+	t = t.UTC()
+	if t.Nanosecond() == 0 {
+		return t.Format("2006-01-02T15:04:05Z")
+	}
+	return t.Format("2006-01-02T15:04:05.000000Z")
 }
 
 func normalizeTimestamp(raw string, fieldName string, code VerificationErrorCode) (string, error) {
@@ -66,7 +79,7 @@ func normalizeTimestamp(raw string, fieldName string, code VerificationErrorCode
 	if err != nil {
 		return "", err
 	}
-	return parsed.Format(time.RFC3339), nil
+	return formatTimestamp(parsed), nil
 }
 
 func normalizeActionIntent(intent ActionIntent) (ActionIntent, error) {
