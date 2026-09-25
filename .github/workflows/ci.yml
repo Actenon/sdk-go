@@ -5,14 +5,27 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
-    name: Test
+    name: Test (Go ${{ matrix.go-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The go.mod minimum and the current stable release.
+        go-version: ['1.22', 'stable']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: ${{ matrix.go-version }}
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - run: go vet ./...
-      - run: go test -v ./...
+      - run: go build ./...
+      # Runs the conformance, differential and Permit interop vectors and the
+      # README quickstart (ExampleVerifier_VerifyJSON).
+      - run: go test -race -count=1 ./...
