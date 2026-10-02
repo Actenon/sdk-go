@@ -86,11 +86,16 @@ func (v *Verifier) Verify(intent ActionIntent, pccb PCCB, context VerificationCo
 	if !normalizedEqual(normalizedPCCB.Target, normalizedIntent.Target) {
 		return VerifiedProtectedRequest{}, newVerificationError(ErrTargetMismatch, "The proof target does not exactly match the action intent.", nil)
 	}
-	if normalizedPCCB.Scope.Mode != "exact" {
+	// Protocol v1 proofs are exact and single-use only (protocol/13 E4).
+	if normalizedPCCB.Scope.Mode != "exact" || !normalizedPCCB.Scope.SingleUse {
 		return VerifiedProtectedRequest{}, newVerificationError(ErrScopeModeInvalid, "The proof scope mode is not supported.", nil)
 	}
 	if !containsString(normalizedPCCB.Scope.Capabilities, normalizedIntent.Action.Capability) {
 		return VerifiedProtectedRequest{}, newVerificationError(ErrScopeCapabilityMismatch, "The proof scope does not allow this capability.", nil)
+	}
+	// E1: the capability must be one this endpoint declares it performs.
+	if !containsString(normalizedContext.ScopeCapabilities, normalizedIntent.Action.Capability) {
+		return VerifiedProtectedRequest{}, newVerificationError(ErrScopeCapabilityMismatch, "The action capability is not one this endpoint performs.", nil)
 	}
 	if normalizedPCCB.IntentID != "" && normalizedPCCB.IntentID != normalizedIntent.IntentID {
 		return VerifiedProtectedRequest{}, newVerificationError(ErrIntentMismatch, "The proof does not match the supplied action intent.", nil)
@@ -119,6 +124,26 @@ func (v *Verifier) Verify(intent ActionIntent, pccb PCCB, context VerificationCo
 	if normalizedPCCB.ActionHash.Value != expectedHash {
 		return VerifiedProtectedRequest{}, newVerificationError(ErrActionHashMismatch, "The proof action hash does not match the action intent.", nil)
 	}
+	// E2: every constraint the endpoint relies on was signed into the proof.
+	for key, value := range normalizedContext.ParameterConstraints {
+		signed, ok := normalizedPCCB.Scope.ParameterConstraints[key]
+		if !ok || !canonicalValueEqual(signed, value) {
+			return VerifiedProtectedRequest{}, newVerificationError(ErrParameterMismatch, "The proof parameter constraints do not cover this endpoint's constraints.", nil)
+		}
+	}
+	// E3: the signed target satisfies at least one declared resource selector.
+	if len(normalizedContext.ResourceSelectors) > 0 {
+		satisfied := false
+		for _, selector := range normalizedContext.ResourceSelectors {
+			if targetSatisfies(normalizedPCCB.Target, selector) {
+				satisfied = true
+				break
+			}
+		}
+		if !satisfied {
+			return VerifiedProtectedRequest{}, newVerificationError(ErrTargetMismatch, "The proof target does not satisfy this endpoint's resource selectors.", nil)
+		}
+	}
 
 	return VerifiedProtectedRequest{
 		Intent:  normalizedIntent,
@@ -137,4 +162,42 @@ func (v *Verifier) VerifyJSON(intentRaw []byte, pccbRaw []byte, context Verifica
 		return VerifiedProtectedRequest{}, err
 	}
 	return v.Verify(intent, pccb, context)
+}
+
+func canonicalValueEqual(left any, right any) bool {
+	leftBytes, err := canonicalizeBytes(left)
+	if err != nil {
+		return false
+	}
+	rightBytes, err := canonicalizeBytes(right)
+	if err != nil {
+		return false
+	}
+	return string(leftBytes) == string(rightBytes)
+}
+
+// targetSatisfies implements protocol/13-edge-binding.md E3.
+func targetSatisfies(target TargetRef, selector map[string]any) bool {
+	if len(selector) == 0 {
+		return false
+	}
+	for key, value := range selector {
+		var actual any
+		switch key {
+		case "resource_id":
+			actual = target.ResourceID
+		case "resource_type":
+			actual = target.ResourceType
+		default:
+			found, ok := target.Selectors[key]
+			if !ok {
+				return false
+			}
+			actual = found
+		}
+		if !canonicalValueEqual(actual, value) {
+			return false
+		}
+	}
+	return true
 }

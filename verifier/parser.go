@@ -216,10 +216,9 @@ func normalizeVerificationContext(context VerificationContext) (VerificationCont
 	if context.Now.IsZero() {
 		return VerificationContext{}, newVerificationError(ErrInvalidContext, "context.now must be set.", nil)
 	}
+	// An empty declaration is refused by edge-binding rule E1 after the
+	// signature verifies, with the same code in every SDK.
 	capabilities := cloneStringSlice(context.ScopeCapabilities)
-	if len(capabilities) == 0 {
-		return VerificationContext{}, newVerificationError(ErrInvalidContext, "context.scope_capabilities must contain at least one capability.", nil)
-	}
 	return VerificationContext{
 		RequestID:            context.RequestID,
 		Audience:             audience,

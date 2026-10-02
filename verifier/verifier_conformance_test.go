@@ -272,11 +272,21 @@ func TestSharedVerifierVectorsAreAllExecuted(t *testing.T) {
 	loadSharedJSON(t, "cases.json", &shared)
 	var timestamps timestampManifest
 	loadSharedJSON(t, "timestamp_cases.json", &timestamps)
+	var edge edgeBindingManifest
+	loadSharedJSON(t, "edge_binding_cases.json", &edge)
 	executed := map[string]bool{
-		"cases.json":           true,
-		"timestamp_cases.json": true,
-		shared.Base.Intent:     true,
-		shared.Base.PCCB:       true,
+		"cases.json":              true,
+		"timestamp_cases.json":    true,
+		"edge_binding_cases.json": true,
+		shared.Base.Intent:        true,
+		shared.Base.PCCB:          true,
+		edge.Base.Intent:          true,
+		edge.Base.PCCB:            true,
+	}
+	for _, vector := range edge.Cases {
+		if vector.PCCB != "" {
+			executed[vector.PCCB] = true
+		}
 	}
 	for _, vector := range timestamps.Cases {
 		executed[vector.Intent] = true
