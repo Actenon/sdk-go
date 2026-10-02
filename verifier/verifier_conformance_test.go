@@ -288,6 +288,13 @@ func TestSharedVerifierVectorsAreAllExecuted(t *testing.T) {
 			executed[vector.PCCB] = true
 		}
 	}
+	var revocation edgeRevocationManifest
+	loadSharedJSON(t, "edge_revocation_cases.json", &revocation)
+	executed["edge_revocation_cases.json"] = true
+	executed[revocation.Base.Intent] = true
+	for _, vector := range revocation.Cases {
+		executed[vector.PCCB] = true
+	}
 	for _, vector := range timestamps.Cases {
 		executed[vector.Intent] = true
 		executed[vector.PCCB] = true

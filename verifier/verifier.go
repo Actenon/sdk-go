@@ -7,6 +7,20 @@ const DefaultClockSkewTolerance time.Duration = 0
 type Verifier struct {
 	signatureVerifier  SignatureVerifier
 	clockSkewTolerance time.Duration
+	revocationChecker  RevocationChecker
+}
+
+// RevocationChecker consults the revocation source for a proof's signed
+// authority (protocol/13-edge-binding.md E5). It returns true only when the
+// authority is NOT revoked; an error means the source could not be consulted.
+type RevocationChecker func(pccb PCCB, context VerificationContext) (bool, error)
+
+// WithRevocationChecker configures the edge's revocation source. A proof
+// whose signed authority declares "revocable": true is refused without one.
+func WithRevocationChecker(checker RevocationChecker) VerifierOption {
+	return func(v *Verifier) {
+		v.revocationChecker = checker
+	}
 }
 
 type VerifierOption func(*Verifier)
@@ -144,6 +158,9 @@ func (v *Verifier) Verify(intent ActionIntent, pccb PCCB, context VerificationCo
 			return VerifiedProtectedRequest{}, newVerificationError(ErrTargetMismatch, "The proof target does not satisfy this endpoint's resource selectors.", nil)
 		}
 	}
+	if err := v.checkRevocation(normalizedPCCB, normalizedContext); err != nil {
+		return VerifiedProtectedRequest{}, err
+	}
 
 	return VerifiedProtectedRequest{
 		Intent:  normalizedIntent,
@@ -200,4 +217,43 @@ func targetSatisfies(target TargetRef, selector map[string]any) bool {
 		}
 	}
 	return true
+}
+
+const authorityStatusUnknown = "The proof authority's revocation status could not be established."
+
+// checkRevocation implements protocol/13-edge-binding.md E5.
+func (v *Verifier) checkRevocation(pccb PCCB, context VerificationContext) (err error) {
+	revocable := false
+	if raw, ok := pccb.Extensions["authority"]; ok {
+		authority, isObject := raw.(map[string]any)
+		if !isObject {
+			return newVerificationError(ErrAuthorityRevoked, authorityStatusUnknown, nil)
+		}
+		if flag, present := authority["revocable"]; present {
+			value, isBool := flag.(bool)
+			if !isBool {
+				return newVerificationError(ErrAuthorityRevoked, authorityStatusUnknown, nil)
+			}
+			revocable = value
+		}
+	}
+	if v.revocationChecker == nil {
+		if revocable {
+			return newVerificationError(ErrAuthorityRevoked, authorityStatusUnknown, nil)
+		}
+		return nil
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = newVerificationError(ErrAuthorityRevoked, authorityStatusUnknown, nil)
+		}
+	}()
+	notRevoked, checkErr := v.revocationChecker(pccb, context)
+	if checkErr != nil {
+		return newVerificationError(ErrAuthorityRevoked, authorityStatusUnknown, nil)
+	}
+	if !notRevoked {
+		return newVerificationError(ErrAuthorityRevoked, "The proof authority has been revoked.", nil)
+	}
+	return nil
 }

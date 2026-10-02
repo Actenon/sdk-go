@@ -15,6 +15,7 @@ const (
 	ErrScopeModeInvalid           VerificationErrorCode = "SCOPE_MODE_INVALID"
 	ErrScopeCapabilityMismatch    VerificationErrorCode = "SCOPE_CAPABILITY_MISMATCH"
 	ErrParameterMismatch          VerificationErrorCode = "PARAMETER_MISMATCH"
+	ErrAuthorityRevoked           VerificationErrorCode = "AUTHORITY_REVOKED"
 	ErrIntentMismatch             VerificationErrorCode = "INTENT_MISMATCH"
 	ErrTenantMismatch             VerificationErrorCode = "TENANT_MISMATCH"
 	ErrSubjectMismatch            VerificationErrorCode = "SUBJECT_MISMATCH"
