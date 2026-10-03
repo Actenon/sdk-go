@@ -2,6 +2,7 @@ package verifier
 
 import (
 	"bytes"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -38,12 +39,27 @@ func parseTimestamp(raw string, fieldName string, code VerificationErrorCode) (t
 	if strings.TrimSpace(raw) == "" {
 		return time.Time{}, newVerificationError(code, fieldName+" must be an RFC3339 timestamp string.", nil)
 	}
-	parsed, err := time.Parse(time.RFC3339, raw)
+	parsed, err := parseRFC3339(raw)
 	if err != nil || parsed.Year() < 1 {
 		return time.Time{}, newVerificationError(ErrInvalidTimestamp, fieldName+" must be an RFC3339 timestamp string.", nil)
 	}
 	// The reference keeps microsecond precision and drops anything finer.
 	return parsed.UTC().Truncate(time.Microsecond), nil
+}
+
+// errCommaFraction reports a "," decimal sign, which RFC 3339 does not allow.
+var errCommaFraction = errors.New("RFC 3339 fractional seconds use '.', not ','")
+
+// parseRFC3339 is time.Parse(time.RFC3339, raw) without the extension that
+// diverged from the Actenon reference on the timestamp-grammar corpus
+// (actenon-kernel evidence/release/north-star/differential): since Go 1.17
+// time.Parse also accepts "," before the fractional seconds, which RFC 3339
+// does not. Every timestamp the SDK reads goes through here.
+func parseRFC3339(raw string) (time.Time, error) {
+	if strings.ContainsRune(raw, ',') {
+		return time.Time{}, errCommaFraction
+	}
+	return time.Parse(time.RFC3339, raw)
 }
 
 // formatTimestamp renders t exactly like the reference's canonical

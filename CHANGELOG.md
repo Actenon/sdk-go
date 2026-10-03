@@ -22,6 +22,11 @@
 
 ### Fixed
 
+- Timestamps with a `,` before the fractional seconds (for example
+  `2026-01-01T12:00:00,5Z`) are refused with `INVALID_TIMESTAMP`. Go's
+  `time.Parse(time.RFC3339, ...)` accepts them; RFC 3339 and the Actenon
+  reference do not (actenon-kernel north-star `corpus-addendum-timestamp-grammar`).
+  Applies to every timestamp the SDK reads.
 - CI: the test-vector path that failed on `main` and on the v1.0.0 tag.
 
 ### Conformance

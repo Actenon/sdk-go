@@ -109,7 +109,7 @@ func VerifyCountersignature(
 	if countersignature.Witness.Type == "" || countersignature.Witness.ID == "" {
 		return VerifiedCountersignature{}, countersignatureError("INVALID_COUNTERSIGNATURE", "counter-signature witness must include type and id")
 	}
-	signedAt, err := time.Parse(time.RFC3339, countersignature.SignedAt)
+	signedAt, err := parseRFC3339(countersignature.SignedAt)
 	if err != nil {
 		return VerifiedCountersignature{}, countersignatureError("INVALID_COUNTERSIGNATURE", "counter-signature signed_at must be RFC3339")
 	}
@@ -287,7 +287,7 @@ func validateCountersigningKeyTime(key TrustedCountersigningKey, signedAt time.T
 		if bound.raw == "" {
 			continue
 		}
-		parsed, err := time.Parse(time.RFC3339, bound.raw)
+		parsed, err := parseRFC3339(bound.raw)
 		if err != nil {
 			return countersignatureError("TRUSTED_KEYS_INVALID", "trusted key time bounds must be RFC3339")
 		}

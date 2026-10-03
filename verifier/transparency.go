@@ -439,7 +439,7 @@ func validateCheckpoint(checkpoint TransparencyCheckpoint) ([32]byte, time.Time,
 	rootBytes, _ := hex.DecodeString(checkpoint.RootHash.Value)
 	var root [32]byte
 	copy(root[:], rootBytes)
-	issuedAt, err := time.Parse(time.RFC3339, checkpoint.IssuedAt)
+	issuedAt, err := parseRFC3339(checkpoint.IssuedAt)
 	if err != nil {
 		return [32]byte{}, time.Time{}, transparencyError("INVALID_CHECKPOINT", "checkpoint issued_at must be RFC3339")
 	}
@@ -469,7 +469,7 @@ func validateTransparencyKeyTime(key TrustedCountersigningKey, issuedAt time.Tim
 		if check.raw == "" {
 			continue
 		}
-		bound, err := time.Parse(time.RFC3339, check.raw)
+		bound, err := parseRFC3339(check.raw)
 		if err != nil {
 			return transparencyError("TRUSTED_KEYS_INVALID", "checkpoint key validity bounds must be RFC3339")
 		}

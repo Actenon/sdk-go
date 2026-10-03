@@ -136,11 +136,11 @@ func VerifyIssuerStatus(
 	if artifact.Status != "good_standing" && artifact.Status != "suspended" && artifact.Status != "revoked" {
 		return VerifiedIssuerStatus{}, trustArtifactError("INVALID_ISSUER_STATUS", "issuer status token is invalid")
 	}
-	issuedAt, err := time.Parse(time.RFC3339, artifact.IssuedAt)
+	issuedAt, err := parseRFC3339(artifact.IssuedAt)
 	if err != nil {
 		return VerifiedIssuerStatus{}, trustArtifactError("INVALID_ISSUER_STATUS", "issued_at must be RFC3339")
 	}
-	expiresAt, err := time.Parse(time.RFC3339, artifact.ExpiresAt)
+	expiresAt, err := parseRFC3339(artifact.ExpiresAt)
 	if err != nil || !expiresAt.After(issuedAt) {
 		return VerifiedIssuerStatus{}, trustArtifactError("INVALID_ISSUER_STATUS", "expires_at must be RFC3339 and after issuance")
 	}
@@ -226,7 +226,7 @@ func verifyApprovalArtifact(
 			return VerifiedApprovalArtifact{}, trustArtifactError("APPROVAL_ACTION_MISMATCH", "approval is not bound to the expected action")
 		}
 	}
-	issuedAt, err := time.Parse(time.RFC3339, approval.IssuedAt)
+	issuedAt, err := parseRFC3339(approval.IssuedAt)
 	if err != nil {
 		return VerifiedApprovalArtifact{}, trustArtifactError("INVALID_APPROVAL_ARTIFACT", "approval issued_at must be RFC3339")
 	}
