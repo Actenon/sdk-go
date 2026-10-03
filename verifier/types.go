@@ -26,11 +26,11 @@ type AudienceRef struct {
 }
 
 type ActionSpec struct {
-	Name       string         `json:"name"`
-	Capability string         `json:"capability"`
-	Parameters map[string]any `json:"parameters"`
+	Name        string         `json:"name"`
+	Capability  string         `json:"capability"`
+	Parameters  map[string]any `json:"parameters"`
 	Constraints map[string]any `json:"constraints,omitempty"`
-	Scope      map[string]any `json:"scope,omitempty"`
+	Scope       map[string]any `json:"scope,omitempty"`
 }
 
 type TargetRef struct {
@@ -55,7 +55,7 @@ type ActionHashSpec struct {
 }
 
 type EscrowReference struct {
-	EscrowID  string `json:"escrow_id"`
+	EscrowID  string `json:"escrow_id,omitempty"`
 	SingleUse bool   `json:"single_use,omitempty"`
 }
 
@@ -104,11 +104,19 @@ type PCCB struct {
 	Extensions      map[string]any   `json:"extensions,omitempty"`
 }
 
+// VerificationContext is what the protected edge declares about itself
+// (actenon-protocol protocol/13-edge-binding.md). It must come from the edge's
+// own configuration, never from the request.
 type VerificationContext struct {
-	RequestID            string
-	Audience             AudienceRef
-	Now                  time.Time
-	ScopeCapabilities    []string
+	RequestID         string
+	Audience          AudienceRef
+	Now               time.Time
+	ScopeCapabilities []string
+	// ParameterConstraints values must be JSON-exact: string, bool, nil, Go
+	// integer types, json.Number, or maps/slices of those. A float64 is
+	// refused (PARAMETER_MISMATCH): 2500, 2500.0, 2.5e3 and a rounded 2^53+1
+	// all decode to the same float64, so its source cannot be checked. When the
+	// declaration is loaded from JSON, decode it with json.Decoder.UseNumber.
 	ParameterConstraints map[string]any
 	ResourceSelectors    []map[string]any
 }

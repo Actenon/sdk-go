@@ -1,10 +1,8 @@
 package verifier
 
 import (
-	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -74,9 +72,7 @@ func countersignatureError(code string, message string) error {
 
 func ParseReceiptCountersignatureJSON(raw []byte) (ReceiptCountersignature, error) {
 	var artifact ReceiptCountersignature
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-	if err := decoder.Decode(&artifact); err != nil {
+	if err := decodeStrictJSON(raw, &artifact, strictJSONOptions{rejectEmptyOptionalStrings: true, exactContracts: true}); err != nil {
 		return ReceiptCountersignature{}, countersignatureError("INVALID_COUNTERSIGNATURE", "counter-signature must be valid JSON")
 	}
 	return artifact, nil
@@ -84,7 +80,7 @@ func ParseReceiptCountersignatureJSON(raw []byte) (ReceiptCountersignature, erro
 
 func ParseTrustedCounterSignatureKeysJSON(raw []byte) (TrustedCounterSignatureKeys, error) {
 	var keys TrustedCounterSignatureKeys
-	if err := json.Unmarshal(raw, &keys); err != nil {
+	if err := decodeStrictJSON(raw, &keys, strictJSONOptions{rejectEmptyOptionalStrings: true}); err != nil {
 		return TrustedCounterSignatureKeys{}, countersignatureError("TRUSTED_KEYS_INVALID", "trusted key set must be valid JSON")
 	}
 	return keys, nil
@@ -105,13 +101,15 @@ func VerifyCountersignature(
 	if err := validateReceiptDigest(countersignature.ReceiptDigest); err != nil {
 		return VerifiedCountersignature{}, err
 	}
-	if countersignature.ReceiptDigest != expectedDigest {
+	// Like the reference, bind by digest value: the canonicalisation label may
+	// legitimately differ between legacy and current artifacts.
+	if countersignature.ReceiptDigest.Value != expectedDigest.Value {
 		return VerifiedCountersignature{}, countersignatureError("RECEIPT_DIGEST_MISMATCH", "counter-signature receipt digest does not match the supplied receipt or digest")
 	}
 	if countersignature.Witness.Type == "" || countersignature.Witness.ID == "" {
 		return VerifiedCountersignature{}, countersignatureError("INVALID_COUNTERSIGNATURE", "counter-signature witness must include type and id")
 	}
-	signedAt, err := time.Parse(time.RFC3339, countersignature.SignedAt)
+	signedAt, err := parseRFC3339(countersignature.SignedAt)
 	if err != nil {
 		return VerifiedCountersignature{}, countersignatureError("INVALID_COUNTERSIGNATURE", "counter-signature signed_at must be RFC3339")
 	}
@@ -171,12 +169,15 @@ func VerifyCountersignature(
 	if !ok || x == "" {
 		return VerifiedCountersignature{}, countersignatureError("TRUSTED_KEYS_INVALID", "public_key_jwk.x must be a base64url string")
 	}
-	publicKey, err := base64.RawURLEncoding.DecodeString(x)
+	publicKey, err := decodeBase64URL(x)
 	if err != nil || len(publicKey) != ed25519.PublicKeySize {
 		return VerifiedCountersignature{}, countersignatureError("TRUSTED_KEYS_INVALID", "public_key_jwk.x must encode a 32-byte Ed25519 public key")
 	}
-	signatureBytes, err := base64.RawURLEncoding.DecodeString(signature.Value)
-	if err != nil || len(signatureBytes) != ed25519.SignatureSize {
+	signatureBytes, err := decodeBase64URL(signature.Value)
+	if err != nil {
+		return VerifiedCountersignature{}, countersignatureError("INVALID_COUNTERSIGNATURE", "counter-signature signature must be unpadded base64url")
+	}
+	if len(signatureBytes) != ed25519.SignatureSize {
 		return VerifiedCountersignature{}, countersignatureError("SIGNATURE_INVALID", "counter-signature must encode a 64-byte Ed25519 signature")
 	}
 	statement := map[string]any{
@@ -209,8 +210,8 @@ func VerifyCountersignature(
 }
 
 func validateReceiptDigest(digest ReceiptDigest) error {
-	if digest.Algorithm != "sha-256" || digest.Canonicalization != "RFC8785-JCS" || !sha256HexPattern.MatchString(digest.Value) {
-		return countersignatureError("INVALID_RECEIPT_DIGEST", "receipt digest must declare sha-256, RFC8785-JCS, and a lowercase 64-character hex value")
+	if digest.Algorithm != "sha-256" || !IsAcceptedCanonicalization(digest.Canonicalization) || !sha256HexPattern.MatchString(digest.Value) {
+		return countersignatureError("INVALID_RECEIPT_DIGEST", "receipt digest must declare sha-256, a known canonicalization profile, and a lowercase 64-character hex value")
 	}
 	return nil
 }
@@ -245,7 +246,7 @@ func resolveReceiptDigest(receiptOrDigest any) (ReceiptDigest, error) {
 	sum := sha256.Sum256(canonical)
 	return ReceiptDigest{
 		Algorithm:        "sha-256",
-		Canonicalization: "RFC8785-JCS",
+		Canonicalization: CanonicalizationProfile,
 		Value:            hex.EncodeToString(sum[:]),
 	}, nil
 }
@@ -286,7 +287,7 @@ func validateCountersigningKeyTime(key TrustedCountersigningKey, signedAt time.T
 		if bound.raw == "" {
 			continue
 		}
-		parsed, err := time.Parse(time.RFC3339, bound.raw)
+		parsed, err := parseRFC3339(bound.raw)
 		if err != nil {
 			return countersignatureError("TRUSTED_KEYS_INVALID", "trusted key time bounds must be RFC3339")
 		}

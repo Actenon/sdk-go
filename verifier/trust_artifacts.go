@@ -2,8 +2,6 @@ package verifier
 
 import (
 	"crypto/ed25519"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
@@ -78,7 +76,7 @@ func trustArtifactError(code string, message string) error {
 
 func ParseIssuerStatusJSON(raw []byte) (IssuerStatusArtifact, error) {
 	var artifact IssuerStatusArtifact
-	if err := json.Unmarshal(raw, &artifact); err != nil {
+	if err := decodeStrictJSON(raw, &artifact, strictJSONOptions{rejectEmptyOptionalStrings: true, exactContracts: true}); err != nil {
 		return artifact, trustArtifactError("INVALID_ISSUER_STATUS", "issuer status must be valid JSON")
 	}
 	return artifact, nil
@@ -86,7 +84,7 @@ func ParseIssuerStatusJSON(raw []byte) (IssuerStatusArtifact, error) {
 
 func ParseApprovalArtifactJSON(raw []byte) (ApprovalArtifact, error) {
 	var artifact ApprovalArtifact
-	if err := json.Unmarshal(raw, &artifact); err != nil {
+	if err := decodeStrictJSON(raw, &artifact, strictJSONOptions{rejectEmptyOptionalStrings: true, exactContracts: true}); err != nil {
 		return artifact, trustArtifactError("INVALID_APPROVAL_ARTIFACT", "approval must be valid JSON")
 	}
 	return artifact, nil
@@ -138,11 +136,11 @@ func VerifyIssuerStatus(
 	if artifact.Status != "good_standing" && artifact.Status != "suspended" && artifact.Status != "revoked" {
 		return VerifiedIssuerStatus{}, trustArtifactError("INVALID_ISSUER_STATUS", "issuer status token is invalid")
 	}
-	issuedAt, err := time.Parse(time.RFC3339, artifact.IssuedAt)
+	issuedAt, err := parseRFC3339(artifact.IssuedAt)
 	if err != nil {
 		return VerifiedIssuerStatus{}, trustArtifactError("INVALID_ISSUER_STATUS", "issued_at must be RFC3339")
 	}
-	expiresAt, err := time.Parse(time.RFC3339, artifact.ExpiresAt)
+	expiresAt, err := parseRFC3339(artifact.ExpiresAt)
 	if err != nil || !expiresAt.After(issuedAt) {
 		return VerifiedIssuerStatus{}, trustArtifactError("INVALID_ISSUER_STATUS", "expires_at must be RFC3339 and after issuance")
 	}
@@ -215,13 +213,20 @@ func verifyApprovalArtifact(
 	if approval.Decision != "approved" {
 		return VerifiedApprovalArtifact{}, trustArtifactError("APPROVAL_NOT_GRANTED", "approval decision is not approved")
 	}
-	if approval.ActionHash.Algorithm != "sha-256" || approval.ActionHash.Canonicalization != "RFC8785-JCS" || !sha256HexPattern.MatchString(approval.ActionHash.Value) {
+	if !validApprovalActionHash(approval.ActionHash) {
 		return VerifiedApprovalArtifact{}, trustArtifactError("INVALID_APPROVAL_ARTIFACT", "approval action hash is invalid")
 	}
-	if expectedActionHash != nil && approval.ActionHash != *expectedActionHash {
-		return VerifiedApprovalArtifact{}, trustArtifactError("APPROVAL_ACTION_MISMATCH", "approval is not bound to the expected action")
+	if expectedActionHash != nil {
+		if !validApprovalActionHash(*expectedActionHash) {
+			return VerifiedApprovalArtifact{}, trustArtifactError("INVALID_APPROVAL_ARTIFACT", "expected action hash is invalid")
+		}
+		// Like the reference, bind by hash value: the canonicalisation label
+		// may legitimately differ between legacy and current artifacts.
+		if approval.ActionHash.Value != expectedActionHash.Value {
+			return VerifiedApprovalArtifact{}, trustArtifactError("APPROVAL_ACTION_MISMATCH", "approval is not bound to the expected action")
+		}
 	}
-	issuedAt, err := time.Parse(time.RFC3339, approval.IssuedAt)
+	issuedAt, err := parseRFC3339(approval.IssuedAt)
 	if err != nil {
 		return VerifiedApprovalArtifact{}, trustArtifactError("INVALID_APPROVAL_ARTIFACT", "approval issued_at must be RFC3339")
 	}
@@ -248,6 +253,12 @@ func verifyApprovalArtifact(
 		ApprovalType: approval.ApprovalType, Decision: approval.Decision,
 		ActionHash: approval.ActionHash, IssuedAt: issuedAt, KeyID: approval.Signature.KeyID,
 	}, nil
+}
+
+func validApprovalActionHash(actionHash ActionHashSpec) bool {
+	return actionHash.Algorithm == "sha-256" &&
+		IsAcceptedCanonicalization(actionHash.Canonicalization) &&
+		sha256HexPattern.MatchString(actionHash.Value)
 }
 
 func selectTrustArtifactKey(
@@ -313,11 +324,11 @@ func verifyTrustArtifactSignature(
 	if !ok {
 		return trustArtifactError("TRUSTED_KEYS_INVALID", "public key x is required")
 	}
-	publicKey, err := base64.RawURLEncoding.DecodeString(x)
+	publicKey, err := decodeBase64URL(x)
 	if err != nil || len(publicKey) != ed25519.PublicKeySize {
 		return trustArtifactError("TRUSTED_KEYS_INVALID", "public key is invalid")
 	}
-	signatureBytes, err := base64.RawURLEncoding.DecodeString(signature.Value)
+	signatureBytes, err := decodeBase64URL(signature.Value)
 	if err != nil || len(signatureBytes) != ed25519.SignatureSize {
 		return trustArtifactError("SIGNATURE_INVALID", "signature is invalid")
 	}

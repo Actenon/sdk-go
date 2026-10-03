@@ -46,16 +46,7 @@ func sharedVectorRoot(t *testing.T) string {
 	if !ok {
 		t.Fatal("unable to resolve shared vector test path")
 	}
-	return filepath.Clean(filepath.Join(
-		filepath.Dir(filename),
-		"..",
-		"..",
-		"..",
-		"actenon",
-		"conformance",
-		"vectors",
-		"verifier_sdk_v1",
-	))
+	return filepath.Join(filepath.Dir(filename), "..", "fixtures", "verifier_sdk_v1")
 }
 
 func loadSharedJSON(t *testing.T, name string, target any) {
@@ -192,5 +183,129 @@ func TestSharedVerifierConformanceVectors(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+type timestampCase struct {
+	ID       string         `json:"id"`
+	Intent   string         `json:"intent"`
+	PCCB     string         `json:"pccb"`
+	Context  map[string]any `json:"context"`
+	Expected sharedExpected `json:"expected"`
+}
+
+type timestampManifest struct {
+	ClockSkewToleranceMS int64           `json:"clock_skew_tolerance_ms"`
+	Cases                []timestampCase `json:"cases"`
+}
+
+func readSharedVector(t *testing.T, name string) []byte {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join(sharedVectorRoot(t), name))
+	if err != nil {
+		t.Fatalf("failed to read shared vector %s: %v", name, err)
+	}
+	return raw
+}
+
+// Kernel timestamp_cases.json: proofs minted with the ACTENON-JCS-STRICT-1
+// label and fractional-second timestamps, plus microsecond window boundaries.
+// The vendored intent and PCCB bytes are verified as-is (no re-encoding).
+func TestSharedFractionalSecondTimestampVectors(t *testing.T) {
+	var manifest timestampManifest
+	loadSharedJSON(t, "timestamp_cases.json", &manifest)
+	if len(manifest.Cases) == 0 {
+		t.Fatal("timestamp_cases.json has no cases")
+	}
+	for _, vector := range manifest.Cases {
+		t.Run(vector.ID, func(t *testing.T) {
+			intentRaw := readSharedVector(t, vector.Intent)
+			pccbRaw := readSharedVector(t, vector.PCCB)
+			var pccbDocument struct {
+				PCCBID string `json:"pccb_id"`
+			}
+			if err := json.Unmarshal(pccbRaw, &pccbDocument); err != nil {
+				t.Fatalf("failed to decode %s: %v", vector.PCCB, err)
+			}
+			sdk := verifier.NewVerifier(
+				verifier.BuildLocalProofVerifier(),
+				verifier.WithClockSkewTolerance(
+					time.Duration(manifest.ClockSkewToleranceMS)*time.Millisecond,
+				),
+			)
+			verified, err := sdk.VerifyJSON(intentRaw, pccbRaw, sharedContext(t, vector.Context))
+			if vector.Expected.Outcome == "verified" {
+				if err != nil {
+					t.Fatalf("expected verification, got %v", err)
+				}
+				if verified.PCCB.PCCBID != pccbDocument.PCCBID {
+					t.Fatalf("unexpected pccb id: %s", verified.PCCB.PCCBID)
+				}
+				if verified.PCCB.ActionHash.Canonicalization != "ACTENON-JCS-STRICT-1" {
+					t.Fatalf("unexpected label %s", verified.PCCB.ActionHash.Canonicalization)
+				}
+				return
+			}
+			var verificationErr *verifier.VerificationError
+			if !errors.As(err, &verificationErr) {
+				t.Fatalf("expected verification refusal, got %v", err)
+			}
+			if string(verificationErr.Code) != vector.Expected.ReasonCode ||
+				verificationErr.Message != vector.Expected.Message {
+				t.Fatalf(
+					"expected %s %q, got %s %q",
+					vector.Expected.ReasonCode,
+					vector.Expected.Message,
+					verificationErr.Code,
+					verificationErr.Message,
+				)
+			}
+		})
+	}
+}
+
+// Every JSON file in fixtures/verifier_sdk_v1 must be a manifest with a
+// runner above or a document one of those manifests references, so a vector
+// cannot be vendored without being executed.
+func TestSharedVerifierVectorsAreAllExecuted(t *testing.T) {
+	var shared sharedManifest
+	loadSharedJSON(t, "cases.json", &shared)
+	var timestamps timestampManifest
+	loadSharedJSON(t, "timestamp_cases.json", &timestamps)
+	var edge edgeBindingManifest
+	loadSharedJSON(t, "edge_binding_cases.json", &edge)
+	executed := map[string]bool{
+		"cases.json":              true,
+		"timestamp_cases.json":    true,
+		"edge_binding_cases.json": true,
+		shared.Base.Intent:        true,
+		shared.Base.PCCB:          true,
+		edge.Base.Intent:          true,
+		edge.Base.PCCB:            true,
+	}
+	for _, vector := range edge.Cases {
+		if vector.PCCB != "" {
+			executed[vector.PCCB] = true
+		}
+	}
+	var revocation edgeRevocationManifest
+	loadSharedJSON(t, "edge_revocation_cases.json", &revocation)
+	executed["edge_revocation_cases.json"] = true
+	executed[revocation.Base.Intent] = true
+	for _, vector := range revocation.Cases {
+		executed[vector.PCCB] = true
+	}
+	for _, vector := range timestamps.Cases {
+		executed[vector.Intent] = true
+		executed[vector.PCCB] = true
+	}
+	entries, err := os.ReadDir(sharedVectorRoot(t))
+	if err != nil {
+		t.Fatalf("failed to list shared vectors: %v", err)
+	}
+	for _, entry := range entries {
+		if filepath.Ext(entry.Name()) == ".json" && !executed[entry.Name()] {
+			t.Errorf("fixtures/verifier_sdk_v1/%s is vendored but no runner executes it", entry.Name())
+		}
 	}
 }
