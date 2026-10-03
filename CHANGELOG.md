@@ -32,7 +32,7 @@
 ### Conformance
 
 - The kernel's shared vectors are vendored byte-identically and pinned to
-  kernel `fce8a5b` (`fixtures/KERNEL_PIN`).
+  kernel `b1b175d` (`fixtures/KERNEL_PIN`), Conformance 1.1.0.
 
 ## [v1.0.0]
 
