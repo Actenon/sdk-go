@@ -1,0 +1,16 @@
+{
+  "comment": "Single source of truth for branch protection (pull_request) and the publish workflows' release gate (release). Validated against .github/workflows by scripts/release_gate.py validate (CI job 'Required-check names exist'). Go modules are published by the tag itself; tag creation must be restricted by a ruleset (OWNER-ACTIONS.md). verify-tag.yml runs the gate on every v* tag as a detector.",
+  "branch": "main",
+  "pull_request": [
+    "Test (Go 1.22)",
+    "Test (Go stable)",
+    "Vendored kernel vectors match the pinned kernel",
+    "Required-check names exist"
+  ],
+  "release": [
+    "Test (Go 1.22)",
+    "Test (Go stable)",
+    "Vendored kernel vectors match the pinned kernel",
+    "Required-check names exist"
+  ]
+}
