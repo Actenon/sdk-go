@@ -7,8 +7,10 @@ This package is intentionally narrow. It focuses on verifier-side proof checking
 ## Install
 
 ```bash
-go get github.com/Actenon/sdk-go@v1.0.0
+go get github.com/Actenon/sdk-go@v1.1.0
 ```
+
+v1.1.0 implements actenon-protocol 13 (edge binding and revocation); v1.0.0 does not.
 
 ## Scope
 
