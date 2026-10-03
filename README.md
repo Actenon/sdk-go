@@ -82,6 +82,23 @@ This quickstart is compiled and run by `go test` as
 minted through actenon-permit. For local proofs signed with the public
 development key use `verifier.BuildLocalProofVerifier()` instead.
 
+### What the edge declares, and revocation
+
+The `VerificationContext` is the protected edge's own declaration
+([protocol 13](https://github.com/Actenon/actenon-protocol/blob/main/protocol/13-edge-binding.md)).
+It never comes from the request:
+
+- `ScopeCapabilities` (required): the capabilities this endpoint performs. A proof for any other capability is refused
+  (`SCOPE_CAPABILITY_MISMATCH`).
+- `ParameterConstraints` (optional): constraints the endpoint relies on. Each must have been signed into the proof
+  (`PARAMETER_MISMATCH`). Values must be JSON-exact: decode JSON configuration with `json.Decoder.UseNumber`, because a
+  `float64` is refused.
+- `ResourceSelectors` (optional): the signed target must satisfy one of them (`TARGET_MISMATCH`).
+
+Proofs minted by actenon-permit 2.0 carry revocable authority. Without a revocation source they are refused
+(`AUTHORITY_REVOKED`). Pass one with `verifier.WithRevocationChecker(func(p verifier.PCCB, c verifier.VerificationContext) (bool, error) { ... })`.
+Return `true` only when the authority is known and not revoked. An error, like `false`, refuses.
+
 See [`examples/http-protected-endpoint/`](examples/http-protected-endpoint/) for a complete stdlib HTTP server example.
 
 
