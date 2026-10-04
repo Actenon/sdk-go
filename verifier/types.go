@@ -26,11 +26,11 @@ type AudienceRef struct {
 }
 
 type ActionSpec struct {
-	Name       string         `json:"name"`
-	Capability string         `json:"capability"`
-	Parameters map[string]any `json:"parameters"`
+	Name        string         `json:"name"`
+	Capability  string         `json:"capability"`
+	Parameters  map[string]any `json:"parameters"`
 	Constraints map[string]any `json:"constraints,omitempty"`
-	Scope      map[string]any `json:"scope,omitempty"`
+	Scope       map[string]any `json:"scope,omitempty"`
 }
 
 type TargetRef struct {
@@ -114,7 +114,8 @@ type VerificationContext struct {
 }
 
 type VerifiedProtectedRequest struct {
-	Intent  ActionIntent
-	PCCB    PCCB
-	Context VerificationContext
+	Intent    ActionIntent
+	PCCB      PCCB
+	Context   VerificationContext
+	Authority *AuthorityExtension
 }

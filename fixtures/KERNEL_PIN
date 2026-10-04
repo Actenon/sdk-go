@@ -1,0 +1,4 @@
+actenon-kernel 43e17adf17be4cb04fbc7bcf528f3427c5805f13
+verifier_sdk_v1 from actenon/conformance/vectors/verifier_sdk_v1
+receipt_countersignature_v1, transparency_log_v1, trust_artifacts_v1 from conformance/vectors/
+Vendored so sdk-go tests run without a monorepo checkout.

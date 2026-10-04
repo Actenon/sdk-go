@@ -162,7 +162,7 @@ func normalizePCCB(pccb PCCB) (PCCB, error) {
 	if err != nil {
 		return PCCB{}, err
 	}
-	scope, err := normalizeScopeSpec(pccb.Scope, "pccb.scope")
+	scope, err := normalizeScopeSpec(pccb.Scope)
 	if err != nil {
 		return PCCB{}, err
 	}
@@ -212,10 +212,10 @@ func normalizeVerificationContext(context VerificationContext) (VerificationCont
 	if context.Now.IsZero() {
 		return VerificationContext{}, newVerificationError(ErrInvalidContext, "context.now must be set.", nil)
 	}
+	// Nil and empty both stay empty. Verify refuses them with
+	// SCOPE_CAPABILITY_MISMATCH. They are not replaced by the attempted
+	// action or by "*".
 	capabilities := cloneStringSlice(context.ScopeCapabilities)
-	if len(capabilities) == 0 {
-		return VerificationContext{}, newVerificationError(ErrInvalidContext, "context.scope_capabilities must contain at least one capability.", nil)
-	}
 	return VerificationContext{
 		RequestID:            context.RequestID,
 		Audience:             audience,
@@ -299,14 +299,11 @@ func normalizeTargetRef(ref TargetRef, fieldName string, code VerificationErrorC
 	}, nil
 }
 
-func normalizeScopeSpec(scope ScopeSpec, fieldName string) (ScopeSpec, error) {
-	if scope.Mode != "exact" {
-		return ScopeSpec{}, newVerificationError(ErrInvalidPCCB, fieldName+".mode must be 'exact'.", nil)
-	}
+func normalizeScopeSpec(scope ScopeSpec) (ScopeSpec, error) {
+	// Mode and capability membership are refusal codes (SCOPE_MODE_INVALID,
+	// SCOPE_CAPABILITY_MISMATCH), decided after the signature verifies.
+	// An empty capability list is not filled in here.
 	capabilities := cloneStringSlice(scope.Capabilities)
-	if len(capabilities) == 0 {
-		return ScopeSpec{}, newVerificationError(ErrInvalidPCCB, fieldName+".capabilities must contain at least one capability.", nil)
-	}
 	return ScopeSpec{
 		Mode:                 scope.Mode,
 		Capabilities:         capabilities,

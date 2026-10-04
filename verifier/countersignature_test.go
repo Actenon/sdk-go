@@ -17,15 +17,7 @@ func countersignatureFixturesDir(t *testing.T) string {
 	if !ok {
 		t.Fatal("unable to resolve counter-signature test file path")
 	}
-	return filepath.Join(
-		filepath.Dir(filename),
-		"..",
-		"..",
-		"..",
-		"conformance",
-		"vectors",
-		"receipt_countersignature_v1",
-	)
+	return filepath.Join(filepath.Dir(filename), "..", "fixtures", "receipt_countersignature_v1")
 }
 
 func loadCountersignatureFixture(t *testing.T, name string) []byte {

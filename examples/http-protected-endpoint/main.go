@@ -65,11 +65,20 @@ func main() {
 		if err != nil {
 			var verificationErr *verifier.VerificationError
 			if errors.As(err, &verificationErr) {
+				// The HTTP caller is untrusted. SCOPE_CAPABILITY_MISMATCH,
+				// SCOPE_MODE_INVALID, SIGNATURE_INVALID and ISSUER_UNTRUSTED
+				// disclose as PROOF_INVALID. Trusted operators still read
+				// verificationErr.Code.
+				code := verifier.DisclosedCode(string(verificationErr.Code))
+				message := verificationErr.Message
+				if code != string(verificationErr.Code) {
+					message = "The proof is invalid."
+				}
 				writeJSON(writer, http.StatusForbidden, map[string]any{
 					"ok":       false,
 					"category": "proof",
-					"code":     verificationErr.Code,
-					"message":  verificationErr.Message,
+					"code":     code,
+					"message":  message,
 				})
 				return
 			}
