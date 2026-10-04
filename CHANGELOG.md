@@ -2,6 +2,14 @@
 
 ## [v1.1.0]
 
+### Capability provenance (wire 1.2.0)
+
+- Exact capability helpers refuse empty issuance scopes and wildcard capabilities.
+- Authority parsing preserves issuer, grant id and revocable metadata. Revocable proofs
+  still require the release candidate's revocation source before acceptance.
+- Retain signature-first checks, strict JSON, all edge-binding rules, timestamp grammar,
+  and the release candidate's existing conformance/differential fixtures.
+
 ### Security (actenon-protocol `protocol/13-edge-binding.md`)
 
 - **E1–E4.** The verifier enforces the protected edge's own declarations:
@@ -32,7 +40,7 @@
 ### Conformance
 
 - The kernel's shared vectors are vendored byte-identically and pinned to
-  kernel `b1b175d` (`fixtures/KERNEL_PIN`), Conformance 1.1.0.
+  kernel `c6564b9` (`fixtures/KERNEL_PIN`), Conformance 1.1.0.
 
 ## [v1.0.0]
 

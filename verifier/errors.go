@@ -16,6 +16,8 @@ const (
 	ErrScopeCapabilityMismatch    VerificationErrorCode = "SCOPE_CAPABILITY_MISMATCH"
 	ErrParameterMismatch          VerificationErrorCode = "PARAMETER_MISMATCH"
 	ErrAuthorityRevoked           VerificationErrorCode = "AUTHORITY_REVOKED"
+	ErrIssuerUntrusted            VerificationErrorCode = "ISSUER_UNTRUSTED"
+	ErrProofInvalid               VerificationErrorCode = "PROOF_INVALID"
 	ErrIntentMismatch             VerificationErrorCode = "INTENT_MISMATCH"
 	ErrTenantMismatch             VerificationErrorCode = "TENANT_MISMATCH"
 	ErrSubjectMismatch            VerificationErrorCode = "SUBJECT_MISMATCH"

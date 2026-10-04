@@ -122,7 +122,8 @@ type VerificationContext struct {
 }
 
 type VerifiedProtectedRequest struct {
-	Intent  ActionIntent
-	PCCB    PCCB
-	Context VerificationContext
+	Intent    ActionIntent
+	PCCB      PCCB
+	Context   VerificationContext
+	Authority *AuthorityExtension
 }

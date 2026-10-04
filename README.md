@@ -1,6 +1,6 @@
 # Actenon Go Verifier SDK
 
-Minimal protected-endpoint verifier SDK for Go, aligned to the Actenon Kernel's public `action_intent` and `pccb` contracts.
+Minimal protected-endpoint verifier SDK for Go, aligned to the Actenon Kernel's public `action_intent` and `pccb` contracts and to protocol wire `1.2.0` (actenon-protocol 1.5.0).
 
 This package is intentionally narrow. It focuses on verifier-side proof checking at the protected execution edge and offline verification of Receipt counter-signatures. It does not issue counter-signatures or contain private-key custody or service code.
 

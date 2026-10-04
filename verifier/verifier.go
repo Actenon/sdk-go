@@ -83,8 +83,14 @@ func (v *Verifier) Verify(intent ActionIntent, pccb PCCB, context VerificationCo
 			nil,
 		)
 	}
-	if v.signatureVerifier == nil || !v.signatureVerifier.Verify(unsignedPayload, normalizedPCCB.Signature) {
-		return VerifiedProtectedRequest{}, newVerificationError(ErrSignatureInvalid, "The proof signature could not be verified.", nil)
+	trustRootConfigured := v.signatureVerifier != nil
+	signatureVerified := trustRootConfigured && v.signatureVerifier.Verify(unsignedPayload, normalizedPCCB.Signature)
+	if code, refused := UnauthenticatedRefusal(trustRootConfigured, signatureVerified); refused {
+		message := "The proof signature could not be verified."
+		if code == ErrIssuerUntrusted {
+			message = "No trust root is configured; the proof is refused."
+		}
+		return VerifiedProtectedRequest{}, newVerificationError(code, message, nil)
 	}
 
 	// ── Semantic checks (after signature is verified) ────────────────
@@ -104,11 +110,11 @@ func (v *Verifier) Verify(intent ActionIntent, pccb PCCB, context VerificationCo
 	if normalizedPCCB.Scope.Mode != "exact" || !normalizedPCCB.Scope.SingleUse {
 		return VerifiedProtectedRequest{}, newVerificationError(ErrScopeModeInvalid, "The proof scope mode is not supported.", nil)
 	}
-	if !containsString(normalizedPCCB.Scope.Capabilities, normalizedIntent.Action.Capability) {
+	if !CapabilityInScope(normalizedIntent.Action.Capability, normalizedPCCB.Scope.Capabilities) {
 		return VerifiedProtectedRequest{}, newVerificationError(ErrScopeCapabilityMismatch, "The proof scope does not allow this capability.", nil)
 	}
 	// E1: the capability must be one this endpoint declares it performs.
-	if !containsString(normalizedContext.ScopeCapabilities, normalizedIntent.Action.Capability) {
+	if !CapabilityInScope(normalizedIntent.Action.Capability, normalizedContext.ScopeCapabilities) {
 		return VerifiedProtectedRequest{}, newVerificationError(ErrScopeCapabilityMismatch, "The action capability is not one this endpoint performs.", nil)
 	}
 	if normalizedPCCB.IntentID != "" && normalizedPCCB.IntentID != normalizedIntent.IntentID {
@@ -162,11 +168,15 @@ func (v *Verifier) Verify(intent ActionIntent, pccb PCCB, context VerificationCo
 		return VerifiedProtectedRequest{}, err
 	}
 
-	return VerifiedProtectedRequest{
+	verified := VerifiedProtectedRequest{
 		Intent:  normalizedIntent,
 		PCCB:    normalizedPCCB,
 		Context: normalizedContext,
-	}, nil
+	}
+	if authority, err := normalizedPCCB.Authority(); err == nil {
+		verified.Authority = &authority
+	}
+	return verified, nil
 }
 
 func (v *Verifier) VerifyJSON(intentRaw []byte, pccbRaw []byte, context VerificationContext) (VerifiedProtectedRequest, error) {
@@ -224,18 +234,12 @@ const authorityStatusUnknown = "The proof authority's revocation status could no
 // checkRevocation implements protocol/13-edge-binding.md E5.
 func (v *Verifier) checkRevocation(pccb PCCB, context VerificationContext) (err error) {
 	revocable := false
-	if raw, ok := pccb.Extensions["authority"]; ok {
-		authority, isObject := raw.(map[string]any)
-		if !isObject {
+	if _, ok := pccb.Extensions["authority"]; ok {
+		authority, parseErr := ParseAuthorityExtension(pccb.Extensions)
+		if parseErr != nil {
 			return newVerificationError(ErrAuthorityRevoked, authorityStatusUnknown, nil)
 		}
-		if flag, present := authority["revocable"]; present {
-			value, isBool := flag.(bool)
-			if !isBool {
-				return newVerificationError(ErrAuthorityRevoked, authorityStatusUnknown, nil)
-			}
-			revocable = value
-		}
+		revocable = authority.Revocable
 	}
 	if v.revocationChecker == nil {
 		if revocable {
