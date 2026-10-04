@@ -1,0 +1,46 @@
+name: Verify release tag
+
+# A Go module version is published the moment its v* tag is pushed (the Go
+# proxy caches it on first request), so nothing can be gated before the tag:
+# tag creation must be restricted by a repository ruleset (OWNER-ACTIONS.md).
+# This workflow is the detector: it fails loudly when a v* tag points at a
+# commit that is not on main or whose required checks did not all pass, and it
+# runs the module's tests from the Go proxy at that version.
+
+on:
+  push:
+    tags: ["v*"]
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  checks: read
+
+jobs:
+  verify-tag:
+    name: Release tag is on main with green required checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Release gate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_gate.py gate --version "${GITHUB_REF_NAME#v}"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - name: The version served by the Go proxy passes its tests
+        run: |
+          mkdir -p "$RUNNER_TEMP/consumer" && cd "$RUNNER_TEMP/consumer"
+          printf 'module consumer\n\ngo 1.22\n' > go.mod
+          for _ in $(seq 1 30); do
+            GOFLAGS=-mod=mod go get "github.com/Actenon/sdk-go@${GITHUB_REF_NAME}" && break
+            sleep 20
+          done
+          go test -count=1 github.com/Actenon/sdk-go/verifier

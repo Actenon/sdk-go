@@ -3,7 +3,6 @@ package verifier
 import (
 	"crypto/ed25519"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -93,7 +92,7 @@ func transparencyError(code string, message string) error {
 
 func ParseTransparencyCheckpointJSON(raw []byte) (TransparencyCheckpoint, error) {
 	var checkpoint TransparencyCheckpoint
-	if err := json.Unmarshal(raw, &checkpoint); err != nil {
+	if err := decodeStrictJSON(raw, &checkpoint, strictJSONOptions{rejectEmptyOptionalStrings: true, exactContracts: true}); err != nil {
 		return TransparencyCheckpoint{}, transparencyError("INVALID_CHECKPOINT", "checkpoint must be valid JSON")
 	}
 	return checkpoint, nil
@@ -101,7 +100,7 @@ func ParseTransparencyCheckpointJSON(raw []byte) (TransparencyCheckpoint, error)
 
 func ParseTransparencyInclusionProofJSON(raw []byte) (TransparencyInclusionProof, error) {
 	var proof TransparencyInclusionProof
-	if err := json.Unmarshal(raw, &proof); err != nil {
+	if err := decodeStrictJSON(raw, &proof, strictJSONOptions{rejectEmptyOptionalStrings: true, exactContracts: true}); err != nil {
 		return TransparencyInclusionProof{}, transparencyError("INVALID_INCLUSION_PROOF", "inclusion proof must be valid JSON")
 	}
 	return proof, nil
@@ -109,7 +108,7 @@ func ParseTransparencyInclusionProofJSON(raw []byte) (TransparencyInclusionProof
 
 func ParseTransparencyConsistencyProofJSON(raw []byte) (TransparencyConsistencyProof, error) {
 	var proof TransparencyConsistencyProof
-	if err := json.Unmarshal(raw, &proof); err != nil {
+	if err := decodeStrictJSON(raw, &proof, strictJSONOptions{rejectEmptyOptionalStrings: true, exactContracts: true}); err != nil {
 		return TransparencyConsistencyProof{}, transparencyError("INVALID_CONSISTENCY_PROOF", "consistency proof must be valid JSON")
 	}
 	return proof, nil
@@ -174,11 +173,11 @@ func VerifyCheckpointSignature(
 	if !ok || x == "" {
 		return VerifiedCheckpoint{}, transparencyError("TRUSTED_KEYS_INVALID", "public_key_jwk.x must be a base64url string")
 	}
-	publicKey, err := base64.RawURLEncoding.DecodeString(x)
+	publicKey, err := decodeBase64URL(x)
 	if err != nil || len(publicKey) != ed25519.PublicKeySize {
 		return VerifiedCheckpoint{}, transparencyError("TRUSTED_KEYS_INVALID", "public_key_jwk.x must encode a 32-byte Ed25519 public key")
 	}
-	signature, err := base64.RawURLEncoding.DecodeString(checkpoint.Signature.Value)
+	signature, err := decodeBase64URL(checkpoint.Signature.Value)
 	if err != nil || len(signature) != ed25519.SignatureSize {
 		return VerifiedCheckpoint{}, transparencyError("SIGNATURE_INVALID", "checkpoint signature must encode a 64-byte Ed25519 signature")
 	}
@@ -440,7 +439,7 @@ func validateCheckpoint(checkpoint TransparencyCheckpoint) ([32]byte, time.Time,
 	rootBytes, _ := hex.DecodeString(checkpoint.RootHash.Value)
 	var root [32]byte
 	copy(root[:], rootBytes)
-	issuedAt, err := time.Parse(time.RFC3339, checkpoint.IssuedAt)
+	issuedAt, err := parseRFC3339(checkpoint.IssuedAt)
 	if err != nil {
 		return [32]byte{}, time.Time{}, transparencyError("INVALID_CHECKPOINT", "checkpoint issued_at must be RFC3339")
 	}
@@ -451,8 +450,8 @@ func validateCheckpoint(checkpoint TransparencyCheckpoint) ([32]byte, time.Time,
 }
 
 func validateTransparencyDigest(digest ReceiptDigest) error {
-	if digest.Algorithm != "sha-256" || digest.Canonicalization != "RFC8785-JCS" || !sha256HexPattern.MatchString(digest.Value) {
-		return transparencyError("INVALID_LEAF_DIGEST", "leaf digest must declare sha-256, RFC8785-JCS, and a lowercase 64-character hex value")
+	if digest.Algorithm != "sha-256" || !IsAcceptedCanonicalization(digest.Canonicalization) || !sha256HexPattern.MatchString(digest.Value) {
+		return transparencyError("INVALID_LEAF_DIGEST", "leaf digest must declare sha-256, a known canonicalization profile, and a lowercase 64-character hex value")
 	}
 	return nil
 }
@@ -470,7 +469,7 @@ func validateTransparencyKeyTime(key TrustedCountersigningKey, issuedAt time.Tim
 		if check.raw == "" {
 			continue
 		}
-		bound, err := time.Parse(time.RFC3339, check.raw)
+		bound, err := parseRFC3339(check.raw)
 		if err != nil {
 			return transparencyError("TRUSTED_KEYS_INVALID", "checkpoint key validity bounds must be RFC3339")
 		}

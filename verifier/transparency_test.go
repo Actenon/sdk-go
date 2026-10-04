@@ -17,7 +17,7 @@ func transparencyFixturesDir(t *testing.T) string {
 	if !ok {
 		t.Fatal("unable to resolve transparency test file path")
 	}
-	return filepath.Join(filepath.Dir(filename), "..", "..", "..", "conformance", "vectors", "transparency_log_v1")
+	return filepath.Join(filepath.Dir(filename), "..", "fixtures", "transparency_log_v1")
 }
 
 func loadTransparencyFixture(t *testing.T, name string) []byte {

@@ -2,9 +2,7 @@ package verifier
 
 import (
 	"bytes"
-	"encoding/json"
-	"io"
-	"reflect"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -26,39 +24,54 @@ func ParsePCCBJSON(raw []byte) (PCCB, error) {
 	return normalizePCCB(pccb)
 }
 
+// coreJSONOptions are the strict decoding rules for Action Intents and
+// PCCBs; see decodeStrictJSON.
+var coreJSONOptions = strictJSONOptions{rejectNullContainers: true, rejectEmptyOptionalStrings: true}
+
 func decodeJSON(raw []byte, target any, code VerificationErrorCode, artifactName string) error {
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-	if err := decoder.Decode(target); err != nil {
+	if err := decodeStrictJSON(raw, target, coreJSONOptions); err != nil {
 		return newVerificationError(code, "failed to decode "+artifactName+" JSON payload.", nil)
 	}
-	if err := ensureNoTrailingJSON(decoder, code, artifactName); err != nil {
-		return err
-	}
 	return nil
-}
-
-func ensureNoTrailingJSON(decoder *json.Decoder, code VerificationErrorCode, artifactName string) error {
-	var trailing any
-	err := decoder.Decode(&trailing)
-	if err == io.EOF {
-		return nil
-	}
-	if err != nil {
-		return newVerificationError(code, "failed while checking trailing "+artifactName+" JSON content.", nil)
-	}
-	return newVerificationError(code, artifactName+" JSON payload must contain a single top-level object.", nil)
 }
 
 func parseTimestamp(raw string, fieldName string, code VerificationErrorCode) (time.Time, error) {
 	if strings.TrimSpace(raw) == "" {
 		return time.Time{}, newVerificationError(code, fieldName+" must be an RFC3339 timestamp string.", nil)
 	}
-	parsed, err := time.Parse(time.RFC3339, raw)
-	if err != nil {
+	parsed, err := parseRFC3339(raw)
+	if err != nil || parsed.Year() < 1 {
 		return time.Time{}, newVerificationError(ErrInvalidTimestamp, fieldName+" must be an RFC3339 timestamp string.", nil)
 	}
-	return parsed.UTC(), nil
+	// The reference keeps microsecond precision and drops anything finer.
+	return parsed.UTC().Truncate(time.Microsecond), nil
+}
+
+// errCommaFraction reports a "," decimal sign, which RFC 3339 does not allow.
+var errCommaFraction = errors.New("RFC 3339 fractional seconds use '.', not ','")
+
+// parseRFC3339 is time.Parse(time.RFC3339, raw) without the extension that
+// diverged from the Actenon reference on the timestamp-grammar corpus
+// (actenon-kernel evidence/release/north-star/differential): since Go 1.17
+// time.Parse also accepts "," before the fractional seconds, which RFC 3339
+// does not. Every timestamp the SDK reads goes through here.
+func parseRFC3339(raw string) (time.Time, error) {
+	if strings.ContainsRune(raw, ',') {
+		return time.Time{}, errCommaFraction
+	}
+	return time.Parse(time.RFC3339, raw)
+}
+
+// formatTimestamp renders t exactly like the reference's canonical
+// timestamp form (Python datetime.isoformat in UTC with a "Z" suffix): the
+// fractional part is present, with six digits, only when the microsecond
+// component is non-zero. Signed payloads and action hashes embed this form.
+func formatTimestamp(t time.Time) string {
+	t = t.UTC()
+	if t.Nanosecond() == 0 {
+		return t.Format("2006-01-02T15:04:05Z")
+	}
+	return t.Format("2006-01-02T15:04:05.000000Z")
 }
 
 func normalizeTimestamp(raw string, fieldName string, code VerificationErrorCode) (string, error) {
@@ -66,7 +79,7 @@ func normalizeTimestamp(raw string, fieldName string, code VerificationErrorCode
 	if err != nil {
 		return "", err
 	}
-	return parsed.Format(time.RFC3339), nil
+	return formatTimestamp(parsed), nil
 }
 
 func normalizeActionIntent(intent ActionIntent) (ActionIntent, error) {
@@ -76,11 +89,11 @@ func normalizeActionIntent(intent ActionIntent) (ActionIntent, error) {
 	if strings.TrimSpace(intent.IntentID) == "" {
 		return ActionIntent{}, newVerificationError(ErrInvalidIntent, "action_intent.intent_id must be a non-empty string.", nil)
 	}
-	issuedAt, err := normalizeTimestamp(intent.IssuedAt, "action_intent.issued_at", ErrInvalidIntent)
+	issuedAt, err := parseTimestamp(intent.IssuedAt, "action_intent.issued_at", ErrInvalidIntent)
 	if err != nil {
 		return ActionIntent{}, err
 	}
-	expiresAt, err := normalizeTimestamp(intent.ExpiresAt, "action_intent.expires_at", ErrInvalidIntent)
+	expiresAt, err := parseTimestamp(intent.ExpiresAt, "action_intent.expires_at", ErrInvalidIntent)
 	if err != nil {
 		return ActionIntent{}, err
 	}
@@ -96,6 +109,13 @@ func normalizeActionIntent(intent ActionIntent) (ActionIntent, error) {
 	if err != nil {
 		return ActionIntent{}, err
 	}
+	// Semantic rules of the reference's Action Intent intake.
+	if !expiresAt.After(issuedAt) {
+		return ActionIntent{}, newVerificationError(ErrInvalidIntent, "action_intent.expires_at must be later than issued_at.", nil)
+	}
+	if len(action.Parameters) == 0 {
+		return ActionIntent{}, newVerificationError(ErrInvalidIntent, "action_intent.action.parameters must contain at least one value.", nil)
+	}
 	target, err := normalizeTargetRef(intent.Target, "action_intent.target", ErrInvalidIntent)
 	if err != nil {
 		return ActionIntent{}, err
@@ -104,8 +124,8 @@ func normalizeActionIntent(intent ActionIntent) (ActionIntent, error) {
 		Contract:       Contract{Name: "action_intent", Version: "v1"},
 		IntentID:       intent.IntentID,
 		IdempotencyKey: intent.IdempotencyKey,
-		IssuedAt:       issuedAt,
-		ExpiresAt:      expiresAt,
+		IssuedAt:       formatTimestamp(issuedAt),
+		ExpiresAt:      formatTimestamp(expiresAt),
 		Tenant:         tenant,
 		Requester:      requester,
 		Action:         action,
@@ -196,7 +216,7 @@ func normalizePCCB(pccb PCCB) (PCCB, error) {
 		ActionHash:      actionHash,
 		Signature:       signature,
 		Extensions:      cloneJSONObject(pccb.Extensions),
-		EscrowReference: normalizeEscrowReference(pccb.EscrowReference),
+		EscrowReference: normalizeEscrowReference(pccb.EscrowReference, scope.SingleUse),
 	}
 	return normalized, nil
 }
@@ -212,10 +232,9 @@ func normalizeVerificationContext(context VerificationContext) (VerificationCont
 	if context.Now.IsZero() {
 		return VerificationContext{}, newVerificationError(ErrInvalidContext, "context.now must be set.", nil)
 	}
+	// An empty declaration is refused by edge-binding rule E1 after the
+	// signature verifies, with the same code in every SDK.
 	capabilities := cloneStringSlice(context.ScopeCapabilities)
-	if len(capabilities) == 0 {
-		return VerificationContext{}, newVerificationError(ErrInvalidContext, "context.scope_capabilities must contain at least one capability.", nil)
-	}
 	return VerificationContext{
 		RequestID:            context.RequestID,
 		Audience:             audience,
@@ -300,12 +319,20 @@ func normalizeTargetRef(ref TargetRef, fieldName string, code VerificationErrorC
 }
 
 func normalizeScopeSpec(scope ScopeSpec, fieldName string) (ScopeSpec, error) {
-	if scope.Mode != "exact" {
-		return ScopeSpec{}, newVerificationError(ErrInvalidPCCB, fieldName+".mode must be 'exact'.", nil)
+	// Whether the mode is supported is a post-signature check
+	// (SCOPE_MODE_INVALID), as in the reference.
+	if strings.TrimSpace(scope.Mode) == "" {
+		return ScopeSpec{}, newVerificationError(ErrInvalidPCCB, fieldName+".mode must be a non-empty string.", nil)
 	}
-	capabilities := cloneStringSlice(scope.Capabilities)
+	// Capabilities are signed in the order presented; never reorder them.
+	capabilities := append([]string{}, scope.Capabilities...)
 	if len(capabilities) == 0 {
 		return ScopeSpec{}, newVerificationError(ErrInvalidPCCB, fieldName+".capabilities must contain at least one capability.", nil)
+	}
+	for _, capability := range capabilities {
+		if capability == "" {
+			return ScopeSpec{}, newVerificationError(ErrInvalidPCCB, fieldName+".capabilities must contain non-empty strings.", nil)
+		}
 	}
 	return ScopeSpec{
 		Mode:                 scope.Mode,
@@ -330,13 +357,17 @@ func normalizeSignatureSpec(ref SignatureSpec, fieldName string) (SignatureSpec,
 	return ref, nil
 }
 
-func normalizeEscrowReference(reference *EscrowReference) *EscrowReference {
-	if reference == nil || strings.TrimSpace(reference.EscrowID) == "" {
+// normalizeEscrowReference mirrors the reference: escrow_reference is part of
+// the signed payload whenever escrow_id is present, and its single_use is
+// always scope.single_use (the presented escrow_reference.single_use is not
+// signed, so it is never surfaced).
+func normalizeEscrowReference(reference *EscrowReference, singleUse bool) *EscrowReference {
+	if reference == nil || reference.EscrowID == "" {
 		return nil
 	}
 	return &EscrowReference{
 		EscrowID:  reference.EscrowID,
-		SingleUse: reference.SingleUse,
+		SingleUse: singleUse,
 	}
 }
 
@@ -409,7 +440,7 @@ func normalizedUnsignedPCCBPayload(pccb PCCB) map[string]any {
 		"nonce":       pccb.Nonce,
 		"action_hash": actionHashToMap(pccb.ActionHash),
 	}
-	if strings.TrimSpace(pccb.IntentID) != "" {
+	if pccb.IntentID != "" {
 		payload["intent_id"] = pccb.IntentID
 	}
 	if pccb.EscrowReference != nil {
@@ -491,7 +522,7 @@ func targetRefToMap(ref TargetRef) map[string]any {
 func scopeSpecToMap(scope ScopeSpec) map[string]any {
 	payload := map[string]any{
 		"mode":         scope.Mode,
-		"capabilities": cloneStringSlice(scope.Capabilities),
+		"capabilities": append([]string{}, scope.Capabilities...),
 		"single_use":   scope.SingleUse,
 	}
 	if len(scope.ResourceSelectors) > 0 {
@@ -511,6 +542,42 @@ func actionHashToMap(ref ActionHashSpec) map[string]any {
 	}
 }
 
+// normalizedEqual compares two bound references by their canonical JSON
+// bytes, as the reference does (_canonical_equal): equivalent encodings of
+// the same value (for example the integers 0 and -0) are equal, and values
+// that cannot be canonicalized never match.
 func normalizedEqual(left any, right any) bool {
-	return reflect.DeepEqual(left, right)
+	leftMap, ok := boundReferenceMap(left)
+	if !ok {
+		return false
+	}
+	rightMap, ok := boundReferenceMap(right)
+	if !ok {
+		return false
+	}
+	leftBytes, err := canonicalizeBytes(leftMap)
+	if err != nil {
+		return false
+	}
+	rightBytes, err := canonicalizeBytes(rightMap)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(leftBytes, rightBytes)
+}
+
+func boundReferenceMap(value any) (map[string]any, bool) {
+	switch typed := value.(type) {
+	case AudienceRef:
+		return audienceRefToMap(typed), true
+	case TenantRef:
+		return tenantRefToMap(typed), true
+	case PartyRef:
+		return partyRefToMap(typed), true
+	case ActionSpec:
+		return actionSpecToMap(typed), true
+	case TargetRef:
+		return targetRefToMap(typed), true
+	}
+	return nil, false
 }

@@ -18,7 +18,7 @@ func trustFixturesDir(t *testing.T) string {
 	if !ok {
 		t.Fatal("unable to resolve test path")
 	}
-	return filepath.Join(filepath.Dir(filename), "..", "..", "..", "conformance", "vectors", "trust_artifacts_v1")
+	return filepath.Join(filepath.Dir(filename), "..", "fixtures", "trust_artifacts_v1")
 }
 
 func loadTrustJSON(t *testing.T, name string, target any) {
