@@ -1,0 +1,6 @@
+=== RUN   TestProtocolCanonicalDepthCounterexample
+    protocol_parity_internal_test.go:19: SDK accepted Protocol's frozen invalid depth vector: {"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":{"a":1}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}
+--- FAIL: TestProtocolCanonicalDepthCounterexample (0.00s)
+FAIL
+FAIL	github.com/Actenon/sdk-go/verifier	0.518s
+FAIL

@@ -125,6 +125,28 @@ func runInteropCase(t *testing.T, document interopDocument, vector interopCase) 
 	})
 
 	expected := vector.Expected
+	// Versioned correction to two historical acceptances, not a rewritten
+	// fixture or an SDK-specific broadening of the normative contract.
+	var correction struct {
+		Cases map[string]struct {
+			OriginalOutcome string `json:"original_outcome"`
+			Outcome         string `json:"outcome"`
+			ReasonCode      string `json:"reason_code"`
+		} `json:"cases"`
+	}
+	rawCorrection, correctionErr := os.ReadFile(filepath.Join(fixturesRoot(t), "protocol_canonicalisation", "legacy-expectation-correction.json"))
+	if correctionErr != nil {
+		t.Fatal(correctionErr)
+	}
+	if correctionErr = json.Unmarshal(rawCorrection, &correction); correctionErr != nil {
+		t.Fatal(correctionErr)
+	}
+	if fixed, ok := correction.Cases[vector.ID]; ok {
+		if expected.Outcome != fixed.OriginalOutcome || fixed.Outcome != "refused" {
+			t.Fatal("invalid legacy correction")
+		}
+		expected = interopExpectation{Outcome: fixed.Outcome, ReasonCode: fixed.ReasonCode}
+	}
 	if override, ok := vector.SDKOverrides["go"]; ok {
 		if expected.Outcome == "refused" && override.Outcome == "verified" {
 			t.Fatal("an SDK override may never accept what the reference refuses")
