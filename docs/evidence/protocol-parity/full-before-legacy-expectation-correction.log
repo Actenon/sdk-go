@@ -1,0 +1,15 @@
+?   	github.com/Actenon/sdk-go/examples/http-protected-endpoint	[no test files]
+--- FAIL: TestCanonicalizationStrictV1Vectors (0.02s)
+    --- FAIL: TestCanonicalizationStrictV1Vectors/maximum_accepted_depth (0.00s)
+        canonical_internal_test.go:89: expected success, got JSON value exceeds maximum nesting depth 32
+--- FAIL: TestKernelInteropVectors (0.08s)
+    --- FAIL: TestKernelInteropVectors/hs256/depth_params_120 (0.00s)
+        kernel_interop_test.go:173: reference verifies this proof; SDK refused: INVALID_PCCB: The proof cannot be canonicalized for signature verification.
+    --- FAIL: TestKernelInteropVectors/hs256/depth_params_124 (0.00s)
+        kernel_interop_test.go:173: reference verifies this proof; SDK refused: INVALID_PCCB: The proof cannot be canonicalized for signature verification.
+--- FAIL: TestVerifierCanonicalizesLikeReference (0.01s)
+    --- FAIL: TestVerifierCanonicalizesLikeReference/hs256/depth_params_124 (0.00s)
+        kernel_interop_test.go:173: reference verifies this proof; SDK refused: INVALID_PCCB: The proof cannot be canonicalized for signature verification.
+FAIL
+FAIL	github.com/Actenon/sdk-go/verifier	2.990s
+FAIL

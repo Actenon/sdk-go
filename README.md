@@ -143,3 +143,13 @@ See [CONFORMANCE.md](https://github.com/Actenon/actenon-protocol/blob/main/CONFO
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE).
+
+### Candidate canonical profile correction
+
+Protocol `8e5bc9e342f694767508bae9a392749c6a8df2cc` is the authority for canonical
+depth: maximum 32 with root zero. This also applies to the legacy
+`RFC8785-JCS` label. The transport envelope limit is separate. Preserved older
+Kernel fixtures allowed 128; a versioned correction now requires refusal of
+the two old signed depth-120/124 cases without modifying their bytes.
+See [raw decisions, hashes, and preserved failures](docs/evidence/protocol-parity/README.md).
+These checks do not claim effect protection or public-release readiness.
