@@ -79,7 +79,10 @@ func TestCanonicalizationStrictV1Vectors(t *testing.T) {
 		ran++
 		t.Run(vector.ID, func(t *testing.T) {
 			output, err := canonicalizeJSON(input)
-			if !vector.ExpectedPass {
+			// Original max_depth fixture encodes the superseded 128-level
+			// Kernel bound. Preserve its bytes and explicitly require refusal
+			// under Protocol 32; the new boundary regression covers acceptance.
+			if !vector.ExpectedPass || vector.Generator == "max_depth" {
 				if err == nil {
 					t.Fatalf("expected rejection, got %q", truncate(output))
 				}

@@ -1,0 +1,21 @@
+{
+  "schema": "actenon-candidate-evidence/v1",
+  "created_at": "2026-10-05T10:04:52.161892+00:00",
+  "base": "12d27356935c7081c36c0b918fda7f5029c14529",
+  "protocol": "8e5bc9e342f694767508bae9a392749c6a8df2cc",
+  "platform": "macOS-26.4.1-arm64-arm-64bit-Mach-O",
+  "files": {
+    "docs/evidence/protocol-parity/README.md": "c922e2e70284c2a50eb6103dafa1e74e0828c7e9b564a448fbf021d9d169a2e0",
+    "docs/evidence/protocol-parity/before-depth.log": "50ea1ed0090fa8b2d172d325ad56848aac9af9643cb27b0340813c87232b07c5",
+    "docs/evidence/protocol-parity/full-after.log": "56eda99e13357bdb22e07e70a9827a61949739b3199060382d82a107b13e899f",
+    "docs/evidence/protocol-parity/full-before-legacy-expectation-correction.log": "11f8d266f3c222330483cabef71f8036e482f736d81fbdf9b144eefb9b756259",
+    "docs/evidence/protocol-parity/full-final.log": "6f430a4c8816bfa6124cdb0df77f76471efbf8f22ca57a0c4fe6535634c7a973",
+    "docs/evidence/protocol-parity/raw-corpus-after.json": "b5de18af68e80d18c16c6840364238c5a99976a047e36988f3781e21943bb7c9",
+    "docs/evidence/protocol-parity/raw-corpus-after.log": "f7357fea94620501d4974007183dc31ae3be5256d17b9ba51512a44aef65e992",
+    "docs/evidence/protocol-parity/raw-corpus-final.json": "b5de18af68e80d18c16c6840364238c5a99976a047e36988f3781e21943bb7c9",
+    "fixtures/protocol_canonicalisation/deeply_nested_exceeds_limit.json": "acfe1c6f825f5417a3fb0708fc804329e5611562e5c19b75b8a662618d90b4fb",
+    "fixtures/protocol_canonicalisation/legacy-expectation-correction.json": "28f4ca4deacd29321130511f13fbf9e62e223e9764710d16fb89265a9f95b66a",
+    "fixtures/protocol_canonicalisation/raw-corpus.json": "cb3f54c89497fb42ea443d7fd8aada4f07fceb3cae84bd1f9e40ec4dd2bbe1dd",
+    "fixtures/protocol_canonicalisation/source.json": "52e340a61ebdb16685b6d4bbacb3e1222eca948fa44f2ffb7a117e1b211ea546"
+  }
+}

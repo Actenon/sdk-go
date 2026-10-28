@@ -30,10 +30,10 @@ func IsAcceptedCanonicalization(label string) bool {
 }
 
 // maxCanonicalDepth and maxCanonicalOutputBytes are the ACTENON-JCS-STRICT-1
-// limits enforced by the reference canonicaliser: no value may sit deeper
-// than 128 levels (the root is level 1) and the output may not exceed 1 MiB.
+// limits owned by Protocol: maximum depth 32 (the root is level 0),
+// independent from the transport JSON envelope limit, and 1 MiB of output.
 const (
-	maxCanonicalDepth       = 128
+	maxCanonicalDepth       = 32
 	maxCanonicalOutputBytes = 1_048_576
 )
 
@@ -41,7 +41,7 @@ var canonicalIntegerPattern = regexp.MustCompile(`^-?(0|[1-9][0-9]*)$`)
 
 func canonicalizeJSON(value any) (string, error) {
 	var builder strings.Builder
-	if err := writeCanonicalJSON(&builder, value, 1); err != nil {
+	if err := writeCanonicalJSON(&builder, value, 0); err != nil {
 		return "", err
 	}
 	if builder.Len() > maxCanonicalOutputBytes {
